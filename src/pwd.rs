@@ -1,21 +1,10 @@
-use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
-use std::process::Output;
+use crate::command::builtins::handle_builtin_error;
+use crate::typesystem::Type;
 
-use crate::command::builtins::BuiltinExitCode;
-
-pub fn run() -> Output {
+pub fn run() -> Type {
     match std::env::current_dir() {
-        Ok(path) => Output {
-            status: ExitStatus::from_raw(0),
-            stdout: path.to_string_lossy().as_bytes().to_vec(),
-            stderr: Vec::new(),
-        },
-        Err(e) => Output {
-            status: ExitStatus::from_raw(BuiltinExitCode::UnknownError as i32),
-            stdout: Vec::new(),
-            stderr: e.to_string().into(),
-        },
+        Ok(path) => Type::File(std::fs::File::open(&path).unwrap(), path.into()),
+        Err(e) => handle_builtin_error(e),
     }
 }
 
@@ -40,10 +29,11 @@ mod tests {
         )
         .unwrap();
         let output = run();
-        assert_eq!(output.status.success(), true,);
-        assert_eq!(
-            String::from_utf8(output.stdout).unwrap(),
-            std::env::current_dir().unwrap().to_string_lossy()
-        );
+        match output {
+            Type::File(_, path) => {
+                assert_eq!(path, std::env::current_dir().unwrap());
+            }
+            _ => panic!("Expected Type::File"),
+        }
     }
 }
