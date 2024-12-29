@@ -22,7 +22,10 @@ pub enum Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Output(o) => write!(f, "{:?}", o),
+            Type::Output(o) => match o.status.success() {
+                true => write!(f, "{}", String::from_utf8_lossy(&o.stdout)),
+                false => write!(f, "{}", String::from_utf8_lossy(&o.stderr)),
+            },
 
             Type::File(file, path) => color_file(file, path, f),
 
