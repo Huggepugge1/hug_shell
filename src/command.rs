@@ -1,15 +1,13 @@
-#[derive(Debug, PartialEq)]
-pub enum CommandType {
-    BuiltIn(Builtin),
-    External,
-    None,
-}
+use super::lexer::Token;
 
 #[derive(Debug, PartialEq)]
-pub struct Command {
-    pub name: String,
-    pub args: Vec<String>,
-    pub r#type: CommandType,
+pub enum Command {
+    Builtin { builtin: Builtin, args: Vec<Token> },
+    External { name: Token, args: Vec<Token> },
+    String(String),
+    None,
+
+    Error(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +19,7 @@ pub enum Builtin {
 }
 
 pub mod builtins {
-    use super::Builtin;
+    use super::{Builtin, Command};
 
     use crate::typesystem::Type;
 
@@ -57,12 +55,15 @@ pub mod builtins {
         }
     }
 
-    pub fn run(builtin: Builtin, args: Vec<String>) -> Type {
-        match builtin {
-            Builtin::Cd => cd::run(args),
-            Builtin::Exit => std::process::exit(0),
-            Builtin::Ls => ls::run(args),
-            Builtin::Pwd => pwd::run(),
+    pub fn run(command: Command) -> Type {
+        match command {
+            Command::Builtin { builtin, args } => match builtin {
+                Builtin::Cd => cd::run(args),
+                Builtin::Exit => std::process::exit(0),
+                Builtin::Ls => ls::run(args),
+                Builtin::Pwd => pwd::run(args),
+            },
+            _ => Type::Null,
         }
     }
 
@@ -107,44 +108,36 @@ pub mod builtins {
 pub mod external {
     use super::Command;
 
-    use std::os::unix::process::ExitStatusExt;
-    use std::process::Output;
-
+    use crate::command::builtins::handle_builtin_error;
     use crate::typesystem::Type;
 
-    enum ExternalExitCode {
-        FileNotFound = 50,
-        PermissionDenied = 100,
-        UnknownError = 200,
-    }
-
     pub fn run(command: Command) -> Type {
-        match std::process::Command::new(&command.name)
-            .args(&command.args)
-            .spawn()
-        {
-            Ok(child) => Type::Output(child.wait_with_output().unwrap()),
-            Err(e) => Type::Output(Output {
-                status: match e.kind() {
-                    std::io::ErrorKind::NotFound => {
-                        std::process::ExitStatus::from_raw(ExternalExitCode::FileNotFound as i32)
-                    }
-                    std::io::ErrorKind::PermissionDenied => std::process::ExitStatus::from_raw(
-                        ExternalExitCode::PermissionDenied as i32,
-                    ),
-                    _ => std::process::ExitStatus::from_raw(ExternalExitCode::UnknownError as i32),
-                },
-                stdout: Vec::new(),
-                stderr: e.to_string().into(),
-            }),
+        match command {
+            Command::External { name, args } => match std::process::Command::new(name.value)
+                .args(
+                    &args
+                        .iter()
+                        .map(|t| t.value.clone())
+                        .collect::<Vec<String>>(),
+                )
+                .spawn()
+            {
+                Ok(child) => Type::Output(child.wait_with_output().unwrap()),
+                Err(e) => handle_builtin_error(e),
+            },
+            _ => unreachable!(),
         }
     }
 
     #[cfg(test)]
     mod tests {
-        use super::super::{Command, CommandType};
+        use super::super::Command;
         use super::*;
 
+        use std::os::unix::process::ExitStatusExt;
+
+        use crate::command::builtins::BuiltinExitCode;
+        use crate::lexer::{Token, TokenType};
         use crate::typesystem::Type;
 
         #[test]
@@ -163,36 +156,40 @@ pub mod external {
                     .unwrap(),
             )
             .unwrap();
-            let command = Command {
-                name: "cat".to_string(),
-                args: vec!["Cargo.toml".to_string()],
-                r#type: CommandType::External,
+            let command = Command::External {
+                name: Token {
+                    value: "cat".to_string(),
+                    r#type: TokenType::Word,
+                },
+                args: vec![Token {
+                    value: "Cargo.toml".to_string(),
+                    r#type: TokenType::Word,
+                }],
             };
             let output = run(command);
             match output {
                 Type::Output(o) => {
-                    assert_eq!(o.status.success(), true);
+                    assert_eq!(o.status.code().unwrap(), 0);
                 }
                 _ => panic!("Expected Type::Output"),
             }
         }
 
         #[test]
-        fn test_run_error() {
-            let command = Command {
-                name: "helloworld".to_string(),
+        fn test_run_with_invalid_command() {
+            let command = Command::External {
+                name: Token {
+                    value: "helloworld".to_string(),
+                    r#type: TokenType::Word,
+                },
                 args: Vec::new(),
-                r#type: CommandType::External,
             };
             let output = run(command);
             match output {
-                Type::Output(o) => {
-                    assert_eq!(
-                        o.status.signal(),
-                        Some(ExternalExitCode::FileNotFound as i32)
-                    );
+                Type::Error { code, .. } => {
+                    assert_eq!(code, BuiltinExitCode::FileNotFound as i32);
                 }
-                _ => panic!("Expected Type::Output"),
+                _ => panic!("Expected Type::Error"),
             }
         }
     }
