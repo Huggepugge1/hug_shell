@@ -1,3 +1,5 @@
+use colored::Colorize;
+
 use crate::command::builtins::{handle_builtin_error, BuiltinExitCode};
 use crate::typesystem::Type;
 
@@ -58,16 +60,19 @@ mod tests {
         let output = run(Vec::new());
         match output {
             Type::Array(files) => {
-                assert_eq!(files.len(), 8);
-                assert_eq!(files[0].to_string(), "src".to_string());
-                assert_eq!(files[1].to_string(), "LICENSE".to_string());
-                assert_eq!(files[2].to_string(), "Cargo.lock".to_string());
-                assert_eq!(files[3].to_string(), "Cargo.toml".to_string());
-                assert_eq!(files[4].to_string(), "target".to_string());
-                assert_eq!(files[5].to_string(), "test_dir".to_string());
-                assert_eq!(files[6].to_string(), ".git".to_string());
-                assert_eq!(files[7].to_string(), "README.md".to_string());
-                assert_eq!(files[8].to_string(), ".gitignore".to_string());
+                assert_eq!(files.len(), 9);
+                assert_eq!(files[0].to_string(), "src".blue().to_string());
+                assert_eq!(files[1].to_string(), "LICENSE".green().to_string());
+                assert_eq!(files[2].to_string(), "Cargo.lock".green().to_string());
+                assert_eq!(files[3].to_string(), "Cargo.toml".green().to_string());
+                assert_eq!(files[4].to_string(), "target".blue().to_string());
+                assert_eq!(files[5].to_string(), "test_dir".blue().to_string());
+                assert_eq!(files[6].to_string(), ".git".bright_blue().to_string());
+                assert_eq!(files[7].to_string(), "README.md".green().to_string());
+                assert_eq!(
+                    files[8].to_string(),
+                    ".gitignore".bright_green().to_string()
+                );
             }
             _ => panic!("Expected Type::Array"),
         }
@@ -93,8 +98,8 @@ mod tests {
         match output {
             Type::Array(files) => {
                 assert_eq!(files.len(), 2);
-                assert_eq!(files[0].to_string(), "1.txt".to_string());
-                assert_eq!(files[1].to_string(), "2.txt".to_string());
+                assert_eq!(files[0].to_string(), "1.txt".green().to_string());
+                assert_eq!(files[1].to_string(), "2.txt".green().to_string());
             }
             _ => panic!("Expected Type::Array"),
         }
