@@ -17,6 +17,7 @@ pub enum Builtin {
     Cd,
     Exit,
     Ls,
+    Pwd,
 }
 
 pub mod builtins {
@@ -24,6 +25,7 @@ pub mod builtins {
 
     use crate::cd;
     use crate::ls;
+    use crate::pwd;
 
     use std::os::unix::process::ExitStatusExt;
     use std::process::Output;
@@ -41,6 +43,7 @@ pub mod builtins {
             "cd" => true,
             "exit" => true,
             "ls" => true,
+            "pwd" => true,
             _ => false,
         }
     }
@@ -50,6 +53,7 @@ pub mod builtins {
             "cd" => Builtin::Cd,
             "exit" => Builtin::Exit,
             "ls" => Builtin::Ls,
+            "pwd" => Builtin::Pwd,
             name => panic!("`{name}` is not a builtin!"),
         }
     }
@@ -59,6 +63,7 @@ pub mod builtins {
             Builtin::Cd => cd::run(args),
             Builtin::Exit => std::process::exit(0),
             Builtin::Ls => ls::run(args),
+            Builtin::Pwd => pwd::run(),
         }
     }
 
