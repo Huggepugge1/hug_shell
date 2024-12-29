@@ -8,6 +8,7 @@ mod parser;
 // Built-in commands
 mod cd;
 mod ls;
+mod pwd;
 
 fn main() -> rustyline::Result<()> {
     loop {
