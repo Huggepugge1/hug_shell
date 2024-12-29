@@ -1,80 +1,49 @@
 use homedir::my_home;
 
-use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
-use std::process::ExitStatus;
-use std::process::Output;
 
-use crate::command::builtins::BuiltinExitCode;
+use crate::command::builtins::{handle_builtin_error, BuiltinExitCode};
+use crate::typesystem::Type;
 
 enum CdExitCode {
     HomeDirNotFound = 25,
 }
 
-fn set_dir(path: PathBuf, output: &mut Output) {
+fn set_dir(path: PathBuf) -> Type {
     match std::env::set_current_dir(path) {
-        Ok(_) => (),
-        Err(e) => {
-            output.stderr.append(&mut e.to_string().into());
-            match e.kind() {
-                std::io::ErrorKind::NotFound => {
-                    output.status = ExitStatus::from_raw(BuiltinExitCode::FileNotFound as i32);
-                }
-                std::io::ErrorKind::PermissionDenied => {
-                    output.status = ExitStatus::from_raw(BuiltinExitCode::PermissionDenied as i32);
-                }
-                _ => {
-                    output.status = ExitStatus::from_raw(BuiltinExitCode::UnknownError as i32);
-                }
-            }
-        }
+        Ok(_) => Type::Null,
+        Err(e) => handle_builtin_error(e),
     }
 }
 
-fn set_home_dir(output: &mut Output) {
-    set_dir(
-        match my_home() {
-            Ok(Some(path)) => path,
-            Ok(None) => {
-                output
-                    .stderr
-                    .append(&mut "Could not find home directory".into());
-                output.status = ExitStatus::from_raw(CdExitCode::HomeDirNotFound as i32);
-                std::env::current_dir().unwrap()
+fn set_home_dir() -> Type {
+    set_dir(match my_home() {
+        Ok(Some(path)) => path,
+        Ok(None) => {
+            return Type::Error {
+                message: "Could not find home directory".into(),
+                code: CdExitCode::HomeDirNotFound as i32,
             }
-            Err(e) => {
-                output.stderr.append(&mut e.to_string().into());
-                output.status = ExitStatus::from_raw(BuiltinExitCode::UnknownError as i32);
-                std::env::current_dir().unwrap()
+        }
+        Err(e) => {
+            return Type::Error {
+                message: e.to_string(),
+                code: BuiltinExitCode::UnknownError as i32,
             }
-        },
-        output,
-    );
+        }
+    })
 }
 
-pub fn run(args: Vec<String>) -> Output {
+pub fn run(args: Vec<String>) -> Type {
     if args.is_empty() {
-        let mut output = Output {
-            status: ExitStatus::from_raw(0),
-            stdout: Vec::new(),
-            stderr: Vec::new(),
-        };
-        set_home_dir(&mut output);
-        output
+        set_home_dir()
     } else if args.len() > 1 {
-        Output {
-            status: ExitStatus::from_raw(BuiltinExitCode::TooManyArguments as i32),
-            stdout: Vec::new(),
-            stderr: "Too many arguments".as_bytes().to_vec(),
+        Type::Error {
+            message: "Too many arguments".into(),
+            code: BuiltinExitCode::TooManyArguments as i32,
         }
     } else {
-        let mut output = Output {
-            status: ExitStatus::from_raw(0),
-            stdout: Vec::new(),
-            stderr: Vec::new(),
-        };
-        set_dir(args[0].clone().into(), &mut output);
-        output
+        set_dir(args[0].clone().into())
     }
 }
 
@@ -87,34 +56,40 @@ mod tests {
     #[test]
     fn test_run() {
         let output = run(Vec::new());
-        assert_eq!(output.status.success(), true);
-        assert_eq!(
-            my_home().unwrap().unwrap().to_string_lossy(),
-            std::env::current_dir().unwrap().to_string_lossy()
-        );
+        match output {
+            Type::Null => {
+                assert_eq!(
+                    my_home().unwrap().unwrap(),
+                    std::env::current_dir().unwrap()
+                );
+            }
+            _ => panic!("Expected Null, got {}", output),
+        }
     }
 
     #[test]
     fn test_run_with_arg() {
         let output = run(vec!["/".to_string()]);
-        assert_eq!(output.status.success(), true);
-        assert_eq!(
-            std::env::current_dir().unwrap().to_string_lossy(),
-            "/".to_string()
-        );
+        match output {
+            Type::Null => {
+                assert_eq!(
+                    std::env::current_dir().unwrap().to_string_lossy(),
+                    "/".to_string()
+                );
+            }
+            _ => panic!("Expected Null, got {}", output),
+        }
     }
 
     #[test]
     fn test_run_with_invalid_arg() {
         let output = run(vec!["invalid".to_string()]);
-        assert_eq!(
-            output.status.signal(),
-            Some(BuiltinExitCode::FileNotFound as i32)
-        );
-        assert_eq!(
-            String::from_utf8(output.stderr).unwrap(),
-            "No such file or directory (os error 2)"
-        );
+        match output {
+            Type::Error { code, .. } => {
+                assert_eq!(code, BuiltinExitCode::FileNotFound as i32);
+            }
+            _ => panic!("Expected Error, got {}", output),
+        };
     }
 
     #[test]
@@ -124,13 +99,11 @@ mod tests {
             "many".to_string(),
             "args".to_string(),
         ]);
-        assert_eq!(
-            output.status.signal(),
-            Some(BuiltinExitCode::TooManyArguments as i32)
-        );
-        assert_eq!(
-            String::from_utf8(output.stderr).unwrap(),
-            "Too many arguments"
-        );
+        match output {
+            Type::Error { code, .. } => {
+                assert_eq!(code, BuiltinExitCode::TooManyArguments as i32);
+            }
+            _ => panic!("Expected Error, got {}", output),
+        }
     }
 }

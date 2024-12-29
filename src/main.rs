@@ -1,9 +1,8 @@
 use rustyline;
 
-use std::os::unix::process::ExitStatusExt;
-
 mod command;
 mod parser;
+mod typesystem;
 
 // Built-in commands
 mod cd;
@@ -42,23 +41,9 @@ fn main() -> rustyline::Result<()> {
             command::CommandType::None => continue,
         };
 
-        match output.status.success() {
-            true => println!("{}", String::from_utf8(output.stdout).unwrap().trim()),
-            false => match output.status.signal() {
-                Some(code) => {
-                    eprintln!(
-                        "{}\n\nExited with statuscode: {}",
-                        String::from_utf8(output.stderr).unwrap().trim(),
-                        code
-                    );
-                }
-                None => {
-                    eprintln!(
-                        "{}\n\nExited without a statuscode",
-                        String::from_utf8(output.stderr).unwrap().trim()
-                    );
-                }
-            },
+        match output {
+            typesystem::Type::Null => (),
+            _ => println!("{}", output),
         }
     }
 }
