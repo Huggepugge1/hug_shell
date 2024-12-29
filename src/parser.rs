@@ -1,6 +1,14 @@
 use crate::command::Command;
 
 pub fn parse(line: String) -> Command {
+    if line.is_empty() {
+        return Command {
+            name: "".to_string(),
+            args: Vec::new(),
+            r#type: crate::command::CommandType::None,
+        };
+    }
+
     let mut name = String::new();
     let mut args = Vec::new();
     let mut r#type = crate::command::CommandType::External;
@@ -15,7 +23,7 @@ pub fn parse(line: String) -> Command {
     }
 
     if crate::command::builtins::is_builtin(&name) {
-        r#type = crate::command::CommandType::BuiltIn(crate::command::builtins::get_builtin(&name));
+        r#type = crate::command::CommandType::BuiltIn(crate::command::builtins::get(&name));
     }
 
     Command { name, args, r#type }
@@ -81,20 +89,55 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_external() {
+    fn test_parse_ls() {
         let command = parse("ls".to_string());
         assert_eq!(command.name, "ls");
         assert_eq!(command.args, Vec::<&str>::new());
-        assert_eq!(command.r#type, crate::command::CommandType::External);
+        assert_eq!(
+            command.r#type,
+            crate::command::CommandType::BuiltIn(Builtin::Ls)
+        );
 
         let command = parse("ls -l".to_string());
         assert_eq!(command.name, "ls");
         assert_eq!(command.args, vec!["-l"]);
-        assert_eq!(command.r#type, crate::command::CommandType::External);
+        assert_eq!(
+            command.r#type,
+            crate::command::CommandType::BuiltIn(Builtin::Ls)
+        );
 
         let command = parse("ls -l /home".to_string());
         assert_eq!(command.name, "ls");
         assert_eq!(command.args, vec!["-l", "/home"]);
+        assert_eq!(
+            command.r#type,
+            crate::command::CommandType::BuiltIn(Builtin::Ls)
+        );
+    }
+
+    #[test]
+    fn test_parse_external() {
+        let command = parse("helloworld".to_string());
+        assert_eq!(command.name, "helloworld");
+        assert_eq!(command.args, Vec::<&str>::new());
         assert_eq!(command.r#type, crate::command::CommandType::External);
+
+        let command = parse("helloworld arg1".to_string());
+        assert_eq!(command.name, "helloworld");
+        assert_eq!(command.args, vec!["arg1"]);
+        assert_eq!(command.r#type, crate::command::CommandType::External);
+
+        let command = parse("helloworld arg1 arg2".to_string());
+        assert_eq!(command.name, "helloworld");
+        assert_eq!(command.args, vec!["arg1", "arg2"]);
+        assert_eq!(command.r#type, crate::command::CommandType::External);
+    }
+
+    #[test]
+    fn test_parse_empty() {
+        let command = parse("".to_string());
+        assert_eq!(command.name, "");
+        assert_eq!(command.args, Vec::<&str>::new());
+        assert_eq!(command.r#type, crate::command::CommandType::None);
     }
 }
