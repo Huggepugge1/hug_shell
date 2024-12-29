@@ -1,6 +1,7 @@
 use rustyline;
 
 mod command;
+mod lexer;
 mod parser;
 mod typesystem;
 
@@ -19,8 +20,8 @@ fn main() -> rustyline::Result<()> {
                 .to_string_lossy()
                 .replace(std::env::var("HOME").unwrap().as_str(), "~")
         ));
-        let command = match readline {
-            Ok(line) => parser::parse(line),
+        let tokens = match readline {
+            Ok(line) => lexer::lex(&line),
             Err(e) => match e {
                 rustyline::error::ReadlineError::Eof => {
                     std::process::exit(0);
@@ -35,10 +36,24 @@ fn main() -> rustyline::Result<()> {
             },
         };
 
-        let output = match command.r#type {
-            command::CommandType::BuiltIn(builtin) => command::builtins::run(builtin, command.args),
-            command::CommandType::External => command::external::run(command),
-            command::CommandType::None => continue,
+        let command = match tokens {
+            Ok(tokens) => parser::parse(tokens),
+            Err(e) => {
+                eprintln!("{}", e);
+                continue;
+            }
+        };
+
+        let output = match command {
+            command::Command::Builtin { .. } => command::builtins::run(command),
+            command::Command::External { .. } => command::external::run(command),
+            command::Command::String(s) => typesystem::Type::String(s),
+            command::Command::None => continue,
+
+            command::Command::Error(e) => {
+                eprintln!("{}", e);
+                continue;
+            }
         };
 
         match output {

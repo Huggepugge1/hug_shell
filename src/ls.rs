@@ -1,6 +1,5 @@
-use colored::Colorize;
-
 use crate::command::builtins::{handle_builtin_error, BuiltinExitCode};
+use crate::lexer::Token;
 use crate::typesystem::Type;
 
 fn list_dir(path: &str) -> Type {
@@ -24,7 +23,7 @@ fn list_dir_files(entries: std::fs::ReadDir) -> Type {
     Type::Array(files)
 }
 
-pub fn run(args: Vec<String>) -> Type {
+pub fn run(args: Vec<Token>) -> Type {
     if args.len() > 1 {
         Type::Error {
             message: "Too many arguments".into(),
@@ -33,13 +32,15 @@ pub fn run(args: Vec<String>) -> Type {
     } else if args.is_empty() {
         list_dir(".")
     } else {
-        list_dir(&args[0])
+        list_dir(&args[0].value)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use colored::Colorize;
 
     #[test]
     fn test_run() {
@@ -94,7 +95,10 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = run(vec!["test_dir".to_string()]);
+        let output = run(vec![Token {
+            value: "test_dir".to_string(),
+            r#type: crate::lexer::TokenType::String,
+        }]);
         match output {
             Type::Array(files) => {
                 assert_eq!(files.len(), 2);
@@ -107,7 +111,10 @@ mod tests {
 
     #[test]
     fn test_run_with_invalid_args() {
-        let output = run(vec!["invalid".to_string()]);
+        let output = run(vec![Token {
+            value: "invalid".to_string(),
+            r#type: crate::lexer::TokenType::String,
+        }]);
         match output {
             Type::Error { code, message } => {
                 assert_eq!(code, BuiltinExitCode::FileNotFound as i32);
@@ -120,9 +127,14 @@ mod tests {
     #[test]
     fn test_run_with_too_many_args() {
         let output = run(vec![
-            "too".to_string(),
-            "many".to_string(),
-            "args".to_string(),
+            Token {
+                value: "test_dir".to_string(),
+                r#type: crate::lexer::TokenType::String,
+            },
+            Token {
+                value: "invalid".to_string(),
+                r#type: crate::lexer::TokenType::String,
+            },
         ]);
         match output {
             Type::Error { code, message } => {

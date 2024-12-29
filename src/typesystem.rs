@@ -29,7 +29,7 @@ impl std::fmt::Display for Type {
 
             Type::File(file, path) => color_file(file, path, f),
 
-            Type::String(s) => write!(f, "{:?}", s.green().to_string()),
+            Type::String(s) => write!(f, "{}", format!("\"{s}\"").green().to_string()),
             Type::Array(a) => write!(f, "{}", array_to_string(a).to_string()),
             Type::Integer(i) => write!(f, "{}", i.to_string().white().to_string()),
             Type::Float(fl) => write!(f, "{}", fl.to_string().white().to_string()),
