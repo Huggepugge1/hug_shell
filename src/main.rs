@@ -38,7 +38,7 @@ fn main() -> rustyline::Result<()> {
             },
         };
 
-        let mut command = match tokens {
+        let mut commands = match tokens {
             Ok(tokens) => parser::Parser::new(tokens.iter().peekable()).parse(),
             Err(e) => {
                 eprintln!("{}", e);
@@ -46,11 +46,12 @@ fn main() -> rustyline::Result<()> {
             }
         };
 
-        let output = command.run();
-
-        match output {
-            typesystem::Type::Null => (),
-            _ => println!("{}", output),
+        for command in commands.iter_mut() {
+            let output = command.run();
+            match output {
+                typesystem::Type::Null => (),
+                _ => println!("{}", output),
+            }
         }
     }
 }
