@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
             match token.r#type {
                 TokenType::Word => self.parse_word(),
                 TokenType::String => self.parse_string(),
+                TokenType::Boolean => self.parse_boolean(),
                 TokenType::SemiColon => Command {
                     command: CommandType::None,
                     stdin: None,
@@ -122,6 +123,14 @@ impl<'a> Parser<'a> {
         let token = self.tokens.next().unwrap();
         Command {
             command: CommandType::String(token.value.clone()),
+            stdin: None,
+        }
+    }
+
+    fn parse_boolean(&mut self) -> Command {
+        let token = self.tokens.next().unwrap();
+        Command {
+            command: CommandType::Boolean(token.value.parse().unwrap()),
             stdin: None,
         }
     }
@@ -456,6 +465,35 @@ mod tests {
                 assert_eq!(value, "hello");
             }
             _ => panic!("Expected String"),
+        }
+    }
+
+    #[test]
+    fn test_parse_boolean() {
+        let tokens = vec![Token {
+            value: "true".to_string(),
+            r#type: TokenType::Boolean,
+        }];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Boolean(value) => {
+                assert_eq!(value, true);
+            }
+            _ => panic!("Expected Boolean"),
+        }
+
+        let tokens = vec![Token {
+            value: "false".to_string(),
+            r#type: TokenType::Boolean,
+        }];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Boolean(value) => {
+                assert_eq!(value, false);
+            }
+            _ => panic!("Expected Boolean"),
         }
     }
 

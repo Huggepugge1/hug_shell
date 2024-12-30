@@ -15,12 +15,16 @@ impl PartialEq for Command {
     }
 }
 
+const UNKNOWN_ERROR_CODE: i32 = 200;
+
 impl Command {
     pub fn run(&mut self) -> crate::typesystem::Type {
         match &self.command {
             CommandType::Builtin { .. } => builtins::run(self),
             CommandType::External { .. } => external::run(self),
+
             CommandType::String(s) => crate::typesystem::Type::String(s.clone()),
+            CommandType::Boolean(b) => crate::typesystem::Type::Boolean(*b),
 
             CommandType::Redirect { .. } => redirect::run(self),
             CommandType::Pipe { .. } => pipes::run(self),
@@ -29,8 +33,41 @@ impl Command {
 
             CommandType::Error(e) => crate::typesystem::Type::Error {
                 message: e.clone(),
-                code: 1,
+                code: UNKNOWN_ERROR_CODE,
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_run_string() {
+        let mut command = super::Command {
+            command: super::CommandType::String("Hello, world!".into()),
+            stdin: None,
+        };
+        let output = command.run();
+        match output {
+            crate::typesystem::Type::String(s) => {
+                assert_eq!(s, "Hello, world!");
+            }
+            _ => panic!("Expected Type::String"),
+        }
+    }
+
+    #[test]
+    fn test_run_boolean() {
+        let mut command = super::Command {
+            command: super::CommandType::Boolean(true),
+            stdin: None,
+        };
+        let output = command.run();
+        match output {
+            crate::typesystem::Type::Boolean(b) => {
+                assert_eq!(b, true);
+            }
+            _ => panic!("Expected Type::Boolean"),
         }
     }
 }
@@ -45,7 +82,9 @@ pub enum CommandType {
         name: Token,
         args: Vec<Token>,
     },
+
     String(String),
+    Boolean(bool),
 
     Redirect {
         source: Box<Command>,
@@ -156,7 +195,7 @@ pub mod builtins {
 }
 
 pub mod external {
-    use super::{Command, CommandType};
+    use super::{Command, CommandType, UNKNOWN_ERROR_CODE};
 
     use std::io::Write;
 
@@ -174,23 +213,25 @@ pub mod external {
                             .collect::<Vec<String>>(),
                     )
                     .stdin(match &command.stdin {
-                        Some(Type::File { file, .. }) => {
-                            std::process::Stdio::from(file.try_clone().unwrap())
-                        }
-                        _ => std::process::Stdio::piped(),
+                        Some(_) => std::process::Stdio::piped(),
+                        None => std::process::Stdio::inherit(),
                     })
                     .stdout(std::process::Stdio::piped())
                     .spawn()
                 {
                     Ok(mut child) => {
                         match &command.stdin {
-                            Some(Type::Output(o)) => {
+                            Some(output) => {
                                 let stdin = child.stdin.as_mut().unwrap();
-                                stdin.write_all(&o.stdout).unwrap();
-                            }
-                            Some(t) => {
-                                let stdin = child.stdin.as_mut().unwrap();
-                                stdin.write_all(&t.to_string().as_bytes()).unwrap();
+                                match stdin.write_all(&output.to_string().as_bytes()) {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        return Type::Error {
+                                            message: e.to_string(),
+                                            code: UNKNOWN_ERROR_CODE,
+                                        }
+                                    }
+                                }
                             }
                             _ => (),
                         }

@@ -19,6 +19,10 @@ impl Token {
                 value: value.to_string(),
                 r#type: TokenType::SemiColon,
             },
+            "true" | "false" => Token {
+                value: value.to_string(),
+                r#type: TokenType::Boolean,
+            },
             _ => {
                 if value.starts_with('\'') && value.ends_with('\'') {
                     Token {
@@ -45,6 +49,7 @@ impl Token {
 pub enum TokenType {
     Word,
     String,
+    Boolean,
 
     GreaterThan,
     Pipe,
@@ -231,6 +236,24 @@ mod tests {
     }
 
     #[test]
+    fn test_lexer_boolean() {
+        let tokens = lex("true false").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "true".to_string(),
+                    r#type: TokenType::Boolean
+                },
+                Token {
+                    value: "false".to_string(),
+                    r#type: TokenType::Boolean
+                }
+            ]
+        );
+    }
+
+    #[test]
     fn test_lexer_word() {
         let tokens = lex("echo Hello, World!").unwrap();
         assert_eq!(
@@ -275,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than() {
+    fn test_lexer_redirection() {
         let tokens = lex("echo > file.txt").unwrap();
         assert_eq!(
             tokens,
@@ -297,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than_with_space() {
+    fn test_lexer_redirection_with_space() {
         let tokens = lex("echo > file.txt ").unwrap();
         assert_eq!(
             tokens,
@@ -319,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than_with_string() {
+    fn test_lexer_redirection_with_string() {
         let tokens = lex("echo > 'file.txt'").unwrap();
         assert_eq!(
             tokens,
@@ -341,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than_with_string_and_space() {
+    fn test_lexer_redirection_with_string_and_space() {
         let tokens = lex("echo > 'file.txt' ").unwrap();
         assert_eq!(
             tokens,
@@ -363,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than_with_string_double() {
+    fn test_lexer_redirection_with_string_double() {
         let tokens = lex("echo > \"file.txt\"").unwrap();
         assert_eq!(
             tokens,
@@ -385,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than_with_string_double_and_space() {
+    fn test_lexer_redirection_with_string_double_and_space() {
         let tokens = lex("echo > \"file.txt\" ").unwrap();
         assert_eq!(
             tokens,
@@ -407,13 +430,13 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_greater_than_with_string_mixed() {
+    fn test_lexer_redirection_with_string_mixed() {
         let tokens = lex("echo > 'file.txt\"").unwrap_err();
         assert_eq!(tokens, "Syntax Error: Unterminated string");
     }
 
     #[test]
-    fn test_lexer_greater_than_with_string_and_file() {
+    fn test_lexer_redirection_with_string_and_file() {
         let tokens = lex("\"Hello, World!\" > file.txt").unwrap();
         assert_eq!(
             tokens,
