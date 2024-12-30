@@ -1,46 +1,51 @@
-use crate::command::builtins::{handle_builtin_error, BuiltinExitCode};
-use crate::lexer::Token;
+use crate::builtin::{handle_builtin_error, BuiltinExitCode};
+use crate::command::Command;
 use crate::typesystem::Type;
 
-fn list_dir(path: &str) -> Type {
-    match std::fs::read_dir(path) {
-        Ok(entries) => list_dir_files(entries),
-        Err(e) => handle_builtin_error(e),
-    }
-}
-
-fn list_dir_files(entries: std::fs::ReadDir) -> Type {
-    let mut files: Vec<Type> = Vec::new();
-    for entry in entries {
-        match entry {
-            Ok(entry) => files.push(Type::File {
-                file: std::fs::File::open(&entry.path()).unwrap(),
-                path: entry.path(),
-            }),
-            Err(e) => return handle_builtin_error(e),
+impl Command {
+    fn list_dir(&self, path: &str) -> Type {
+        match std::fs::read_dir(path) {
+            Ok(entries) => self.list_dir_files(entries),
+            Err(e) => handle_builtin_error(e),
         }
     }
-    Type::Array(files)
-}
 
-pub fn run(args: &Vec<Token>) -> Type {
-    if args.len() > 1 {
-        Type::Error {
-            message: "Too many arguments".into(),
-            code: BuiltinExitCode::TooManyArguments as i32,
+    fn list_dir_files(&self, entries: std::fs::ReadDir) -> Type {
+        let mut files: Vec<Type> = Vec::new();
+        for entry in entries {
+            match entry {
+                Ok(entry) => files.push(Type::File {
+                    file: std::fs::File::open(&entry.path()).unwrap(),
+                    path: entry.path(),
+                    full_path: false,
+                }),
+                Err(e) => return handle_builtin_error(e),
+            }
         }
-    } else if args.is_empty() {
-        list_dir(".")
-    } else {
-        list_dir(&args[0].value)
+        Type::Array(files)
+    }
+
+    pub fn run_ls(&self) -> Type {
+        let args = self.get_args();
+        match args.len() {
+            0 => self.list_dir("."),
+            1 => self.list_dir(&args[0].value),
+            _ => Type::Error {
+                message: "Too many arguments".into(),
+                code: BuiltinExitCode::TooManyArguments as i32,
+            },
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use colored::Colorize;
+
+    use crate::builtin::BuiltinExitCode;
+    use crate::command::{Command, CommandKind};
+    use crate::lexer::{Token, TokenKind};
+    use crate::typesystem::Type;
 
     #[test]
     fn test_run() {
@@ -58,7 +63,14 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = run(&Vec::new());
+        let output = Command {
+            kind: CommandKind::Builtin {
+                builtin: crate::builtin::Builtin::Ls,
+                args: Vec::new(),
+            },
+            stdin: None,
+        }
+        .run_ls();
         match output {
             Type::Array(files) => {
                 assert_eq!(files.len(), 9);
@@ -95,26 +107,40 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = run(&vec![Token {
-            value: "test_dir".to_string(),
-            r#type: crate::lexer::TokenType::String,
-        }]);
+        let output = Command {
+            kind: CommandKind::Builtin {
+                builtin: crate::builtin::Builtin::Ls,
+                args: vec![Token {
+                    value: "test_dir".to_string(),
+                    kind: TokenKind::String,
+                }],
+            },
+            stdin: None,
+        }
+        .run();
         match output {
             Type::Array(files) => {
                 assert_eq!(files.len(), 2);
                 assert_eq!(files[0].to_string(), "1.txt".green().to_string());
                 assert_eq!(files[1].to_string(), "2.txt".green().to_string());
             }
-            _ => panic!("Expected Type::Array"),
+            _ => panic!("Expected Type::Array, got {:?}", output),
         }
     }
 
     #[test]
     fn test_run_with_invalid_args() {
-        let output = run(&vec![Token {
-            value: "invalid".to_string(),
-            r#type: crate::lexer::TokenType::String,
-        }]);
+        let output = Command {
+            kind: CommandKind::Builtin {
+                builtin: crate::builtin::Builtin::Ls,
+                args: vec![Token {
+                    value: "invalid".to_string(),
+                    kind: TokenKind::String,
+                }],
+            },
+            stdin: None,
+        }
+        .run();
         match output {
             Type::Error { code, message } => {
                 assert_eq!(code, BuiltinExitCode::FileNotFound as i32);
@@ -126,16 +152,23 @@ mod tests {
 
     #[test]
     fn test_run_with_too_many_args() {
-        let output = run(&vec![
-            Token {
-                value: "test_dir".to_string(),
-                r#type: crate::lexer::TokenType::String,
+        let output = Command {
+            kind: CommandKind::Builtin {
+                builtin: crate::builtin::Builtin::Ls,
+                args: vec![
+                    Token {
+                        value: "/".to_string(),
+                        kind: TokenKind::String,
+                    },
+                    Token {
+                        value: "/".to_string(),
+                        kind: TokenKind::String,
+                    },
+                ],
             },
-            Token {
-                value: "invalid".to_string(),
-                r#type: crate::lexer::TokenType::String,
-            },
-        ]);
+            stdin: None,
+        }
+        .run();
         match output {
             Type::Error { code, message } => {
                 assert_eq!(code, BuiltinExitCode::TooManyArguments as i32);

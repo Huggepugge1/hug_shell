@@ -7,3 +7,6 @@ edition = "2021"
 colored = "2.2.0"
 homedir = "0.3.4"
 rustyline = "15.0.0"
+
+[env]
+PATH_TO_HUG = "/home/huggepugge/hug_shell"

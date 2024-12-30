@@ -7,6 +7,9 @@ mod pipes;
 mod redirect;
 mod typesystem;
 
+mod builtin;
+mod external;
+
 // Built-in commands
 mod cd;
 mod ls;
