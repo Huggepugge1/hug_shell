@@ -1,13 +1,45 @@
 use super::lexer::Token;
 
+use crate::redirect;
+
 #[derive(Debug, PartialEq)]
 pub enum Command {
-    Builtin { builtin: Builtin, args: Vec<Token> },
-    External { name: Token, args: Vec<Token> },
+    Builtin {
+        builtin: Builtin,
+        args: Vec<Token>,
+    },
+    External {
+        name: Token,
+        args: Vec<Token>,
+    },
     String(String),
-    None,
 
+    Redirect {
+        source: Box<Command>,
+        destination: Box<Command>,
+    },
+
+    None,
     Error(String),
+}
+
+impl Command {
+    pub fn run(&self) -> crate::typesystem::Type {
+        match self {
+            Command::Builtin { .. } => builtins::run(self),
+            Command::External { .. } => external::run(self),
+            Command::String(s) => crate::typesystem::Type::String(s.clone()),
+
+            Command::Redirect { .. } => redirect::run(self),
+
+            Command::None => crate::typesystem::Type::Null,
+
+            Command::Error(e) => crate::typesystem::Type::Error {
+                message: e.clone(),
+                code: 1,
+            },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -55,7 +87,7 @@ pub mod builtins {
         }
     }
 
-    pub fn run(command: Command) -> Type {
+    pub fn run(command: &Command) -> Type {
         match command {
             Command::Builtin { builtin, args } => match builtin {
                 Builtin::Cd => cd::run(args),
@@ -111,20 +143,22 @@ pub mod external {
     use crate::command::builtins::handle_builtin_error;
     use crate::typesystem::Type;
 
-    pub fn run(command: Command) -> Type {
+    pub fn run(command: &Command) -> Type {
         match command {
-            Command::External { name, args } => match std::process::Command::new(name.value)
-                .args(
-                    &args
-                        .iter()
-                        .map(|t| t.value.clone())
-                        .collect::<Vec<String>>(),
-                )
-                .spawn()
-            {
-                Ok(child) => Type::Output(child.wait_with_output().unwrap()),
-                Err(e) => handle_builtin_error(e),
-            },
+            Command::External { name, args } => {
+                match std::process::Command::new(name.value.clone())
+                    .args(
+                        &args
+                            .iter()
+                            .map(|t| t.value.clone())
+                            .collect::<Vec<String>>(),
+                    )
+                    .spawn()
+                {
+                    Ok(child) => Type::Output(child.wait_with_output().unwrap()),
+                    Err(e) => handle_builtin_error(e),
+                }
+            }
             _ => unreachable!(),
         }
     }
@@ -164,7 +198,7 @@ pub mod external {
                     r#type: TokenType::Word,
                 }],
             };
-            let output = run(command);
+            let output = run(&command);
             match output {
                 Type::Output(o) => {
                     assert_eq!(o.status.code().unwrap(), 0);
@@ -182,7 +216,7 @@ pub mod external {
                 },
                 args: Vec::new(),
             };
-            let output = run(command);
+            let output = run(&command);
             match output {
                 Type::Error { code, .. } => {
                     assert_eq!(code, BuiltinExitCode::FileNotFound as i32);

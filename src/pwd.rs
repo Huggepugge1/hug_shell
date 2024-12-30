@@ -4,7 +4,7 @@ use crate::command::builtins::handle_builtin_error;
 use crate::lexer::Token;
 use crate::typesystem::Type;
 
-pub fn run(args: Vec<Token>) -> Type {
+pub fn run(args: &Vec<Token>) -> Type {
     if !args.is_empty() {
         return Type::Error {
             message: "Too many arguments".into(),
@@ -12,7 +12,10 @@ pub fn run(args: Vec<Token>) -> Type {
         };
     }
     match std::env::current_dir() {
-        Ok(path) => Type::File(std::fs::File::open(&path).unwrap(), path.into()),
+        Ok(path) => Type::File {
+            file: std::fs::File::open(&path).unwrap(),
+            path: path.into(),
+        },
         Err(e) => handle_builtin_error(e),
     }
 }
@@ -37,9 +40,9 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = run(Vec::new());
+        let output = run(&Vec::new());
         match output {
-            Type::File(_, path) => {
+            Type::File { path, .. } => {
                 assert_eq!(path, std::env::current_dir().unwrap());
             }
             _ => panic!("Expected Type::File"),

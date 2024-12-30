@@ -13,17 +13,17 @@ fn list_dir_files(entries: std::fs::ReadDir) -> Type {
     let mut files: Vec<Type> = Vec::new();
     for entry in entries {
         match entry {
-            Ok(entry) => files.push(Type::File(
-                std::fs::File::open(&entry.path()).unwrap(),
-                entry.path(),
-            )),
+            Ok(entry) => files.push(Type::File {
+                file: std::fs::File::open(&entry.path()).unwrap(),
+                path: entry.path(),
+            }),
             Err(e) => return handle_builtin_error(e),
         }
     }
     Type::Array(files)
 }
 
-pub fn run(args: Vec<Token>) -> Type {
+pub fn run(args: &Vec<Token>) -> Type {
     if args.len() > 1 {
         Type::Error {
             message: "Too many arguments".into(),
@@ -58,7 +58,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = run(Vec::new());
+        let output = run(&Vec::new());
         match output {
             Type::Array(files) => {
                 assert_eq!(files.len(), 9);
@@ -95,7 +95,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = run(vec![Token {
+        let output = run(&vec![Token {
             value: "test_dir".to_string(),
             r#type: crate::lexer::TokenType::String,
         }]);
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_run_with_invalid_args() {
-        let output = run(vec![Token {
+        let output = run(&vec![Token {
             value: "invalid".to_string(),
             r#type: crate::lexer::TokenType::String,
         }]);
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_run_with_too_many_args() {
-        let output = run(vec![
+        let output = run(&vec![
             Token {
                 value: "test_dir".to_string(),
                 r#type: crate::lexer::TokenType::String,
