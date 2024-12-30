@@ -1,5 +1,5 @@
 use crate::command::builtins;
-use crate::command::Command;
+use crate::command::{Command, CommandType};
 use crate::lexer::{Token, TokenType};
 
 pub struct Parser<'a> {
@@ -15,14 +15,19 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Command {
-        let command = self.parse_expression();
+        if self.tokens.peek().is_none() {
+            return Command::NONE;
+        }
+        let mut command = self.parse_expression();
 
-        if let Some(token) = self.tokens.next() {
-            if token.r#type != TokenType::GreaterThan {
-                return Command::Error("Unexpected token".to_string());
-            } else {
-                return self.parse_redirection(command);
-            }
+        while let Some(token) = self.tokens.peek() {
+            command = match token.r#type {
+                TokenType::GreaterThan | TokenType::Pipe => self.parse_binary(command),
+                _ => Command {
+                    command: CommandType::Error("Unexpected token".to_string()),
+                    stdin: None,
+                },
+            };
         }
         command
     }
@@ -32,10 +37,16 @@ impl<'a> Parser<'a> {
             match token.r#type {
                 TokenType::Word => self.parse_word(),
                 TokenType::String => self.parse_string(),
-                _ => Command::Error("Unexpected token".to_string()),
+                _ => Command {
+                    command: CommandType::Error("Unexpected token".to_string()),
+                    stdin: None,
+                },
             }
         } else {
-            Command::None
+            Command {
+                command: CommandType::Error("Unexpected end of input".to_string()),
+                stdin: None,
+            }
         }
     }
 
@@ -57,24 +68,55 @@ impl<'a> Parser<'a> {
         }
 
         if let Some(builtin) = builtin {
-            Command::Builtin { builtin, args }
+            Command {
+                command: CommandType::Builtin { builtin, args },
+                stdin: None,
+            }
         } else {
-            Command::External {
-                name: token.clone(),
-                args,
+            Command {
+                command: CommandType::External {
+                    name: token.clone(),
+                    args,
+                },
+                stdin: None,
             }
         }
     }
 
     fn parse_string(&mut self) -> Command {
         let token = self.tokens.next().unwrap();
-        Command::String(token.value.clone())
+        Command {
+            command: CommandType::String(token.value.clone()),
+            stdin: None,
+        }
     }
 
-    fn parse_redirection(&mut self, command: Command) -> Command {
-        Command::Redirect {
-            source: Box::new(command),
-            destination: Box::new(self.parse_expression()),
+    fn parse_binary(&mut self, command: Command) -> Command {
+        match self.tokens.next() {
+            Some(token) => match token.r#type {
+                TokenType::GreaterThan => Command {
+                    command: CommandType::Redirect {
+                        source: Box::new(command),
+                        destination: Box::new(self.parse_expression()),
+                    },
+                    stdin: None,
+                },
+                TokenType::Pipe => Command {
+                    command: CommandType::Pipe {
+                        source: Box::new(command),
+                        destination: Box::new(self.parse_expression()),
+                    },
+                    stdin: None,
+                },
+                _ => Command {
+                    command: CommandType::Error("Unexpected token".to_string()),
+                    stdin: None,
+                },
+            },
+            None => Command {
+                command: CommandType::Error("Unexpected end of input".to_string()),
+                stdin: None,
+            },
         }
     }
 }
@@ -92,8 +134,8 @@ mod tests {
         }];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Cd);
                 assert_eq!(args, Vec::<Token>::new());
             }
@@ -115,8 +157,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Cd);
                 assert_eq!(
                     args,
@@ -148,8 +190,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Cd);
                 assert_eq!(
                     args,
@@ -177,8 +219,8 @@ mod tests {
         }];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Exit);
                 assert_eq!(args, Vec::<Token>::new());
             }
@@ -200,8 +242,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Exit);
                 assert_eq!(
                     args,
@@ -233,8 +275,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Exit);
                 assert_eq!(
                     args,
@@ -262,8 +304,8 @@ mod tests {
         }];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Ls);
                 assert_eq!(args, Vec::<Token>::new());
             }
@@ -285,8 +327,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Ls);
                 assert_eq!(
                     args,
@@ -318,8 +360,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Builtin { builtin, args } => {
+        match command.command {
+            CommandType::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Ls);
                 assert_eq!(
                     args,
@@ -347,8 +389,8 @@ mod tests {
         }];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::String(value) => {
+        match command.command {
+            CommandType::String(value) => {
                 assert_eq!(value, "hello");
             }
             _ => panic!("Expected String"),
@@ -363,8 +405,8 @@ mod tests {
         }];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::External { name, args } => {
+        match command.command {
+            CommandType::External { name, args } => {
                 assert_eq!(
                     name,
                     Token {
@@ -393,8 +435,8 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::External { name, args } => {
+        match command.command {
+            CommandType::External { name, args } => {
                 assert_eq!(
                     name,
                     Token {
@@ -424,7 +466,7 @@ mod tests {
     fn test_parse_empty() {
         let tokens = Vec::new();
         let command = Parser::new(tokens.iter().peekable()).parse();
-        assert_eq!(command, Command::None);
+        assert_eq!(command, Command::NONE);
     }
 
     #[test]
@@ -445,19 +487,28 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Redirect {
+        match command.command {
+            CommandType::Redirect {
                 source,
                 destination,
             } => {
                 assert_eq!(
                     *source,
-                    Command::Builtin {
-                        builtin: Builtin::Ls,
-                        args: Vec::new()
+                    Command {
+                        command: CommandType::Builtin {
+                            builtin: Builtin::Ls,
+                            args: Vec::new()
+                        },
+                        stdin: None,
                     }
                 );
-                assert_eq!(*destination, Command::String("output.txt".to_string()));
+                assert_eq!(
+                    *destination,
+                    Command {
+                        command: CommandType::String("output.txt".to_string()),
+                        stdin: None,
+                    }
+                );
             }
             _ => panic!("Expected Redirect"),
         }
@@ -481,13 +532,25 @@ mod tests {
         ];
 
         let command = Parser::new(tokens.iter().peekable()).parse();
-        match command {
-            Command::Redirect {
+        match command.command {
+            CommandType::Redirect {
                 source,
                 destination,
             } => {
-                assert_eq!(*source, Command::String("ls".to_string()));
-                assert_eq!(*destination, Command::String("output.txt".to_string()));
+                assert_eq!(
+                    *source,
+                    Command {
+                        command: CommandType::String("ls".to_string()),
+                        stdin: None,
+                    }
+                );
+                assert_eq!(
+                    *destination,
+                    Command {
+                        command: CommandType::String("output.txt".to_string()),
+                        stdin: None,
+                    }
+                );
             }
             _ => panic!("Expected Redirect"),
         }

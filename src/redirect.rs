@@ -1,17 +1,17 @@
 use std::io::Write;
 
-use crate::command::Command;
+use crate::command::{Command, CommandType};
 use crate::typesystem::Type;
 
-pub fn run(command: &Command) -> Type {
-    match command {
-        Command::Redirect {
+pub fn run(command: &mut Command) -> Type {
+    match &mut command.command {
+        CommandType::Redirect {
             source,
             destination,
         } => {
             let source_output = source.run();
-            match **destination {
-                Command::String(ref s) => {
+            match &destination.command {
+                CommandType::String(s) => {
                     let mut file = std::fs::OpenOptions::new()
                         .write(true)
                         .create(true)
@@ -38,10 +38,20 @@ mod tests {
 
     #[test]
     fn test_run() {
-        let output = run(&Command::Redirect {
-            source: Box::new(Command::String("Hello, world!".to_string())),
-            destination: Box::new(Command::String("test.txt".to_string())),
-        });
+        let mut command = Command {
+            command: CommandType::Redirect {
+                source: Box::new(Command {
+                    command: CommandType::String("Hello, world!".into()),
+                    stdin: None,
+                }),
+                destination: Box::new(Command {
+                    command: CommandType::String("test.txt".into()),
+                    stdin: None,
+                }),
+            },
+            stdin: None,
+        };
+        let output = run(&mut command);
         assert_eq!(output, Type::Null);
         let contents = std::fs::read_to_string("test.txt").unwrap();
         assert_eq!(contents, "Hello, world!");

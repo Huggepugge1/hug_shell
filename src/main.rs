@@ -3,6 +3,7 @@ use rustyline;
 mod command;
 mod lexer;
 mod parser;
+mod pipes;
 mod redirect;
 mod typesystem;
 
@@ -22,7 +23,7 @@ fn main() -> rustyline::Result<()> {
                 .replace(std::env::var("HOME").unwrap().as_str(), "~")
         ));
         let tokens = match readline {
-            Ok(line) => lexer::lex(&line),
+            Ok(line) => lexer::lex(&line.replace("~", std::env::var("HOME").unwrap().as_str())),
             Err(e) => match e {
                 rustyline::error::ReadlineError::Eof => {
                     std::process::exit(0);
@@ -37,7 +38,7 @@ fn main() -> rustyline::Result<()> {
             },
         };
 
-        let command = match tokens {
+        let mut command = match tokens {
             Ok(tokens) => parser::Parser::new(tokens.iter().peekable()).parse(),
             Err(e) => {
                 eprintln!("{}", e);
