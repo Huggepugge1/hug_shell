@@ -4,12 +4,52 @@ pub struct Token {
     pub r#type: TokenType,
 }
 
+impl Token {
+    pub fn new(value: &str) -> Self {
+        match value {
+            ">" => Token {
+                value: value.to_string(),
+                r#type: TokenType::GreaterThan,
+            },
+            "|" => Token {
+                value: value.to_string(),
+                r#type: TokenType::Pipe,
+            },
+            ";" => Token {
+                value: value.to_string(),
+                r#type: TokenType::SemiColon,
+            },
+            _ => {
+                if value.starts_with('\'') && value.ends_with('\'') {
+                    Token {
+                        value: value[1..value.len() - 1].to_string(),
+                        r#type: TokenType::String,
+                    }
+                } else if value.starts_with('"') && value.ends_with('"') {
+                    Token {
+                        value: value[1..value.len() - 1].to_string(),
+                        r#type: TokenType::String,
+                    }
+                } else {
+                    Token {
+                        value: value.to_string(),
+                        r#type: TokenType::Word,
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Word,
     String,
+
     GreaterThan,
     Pipe,
+
+    SemiColon,
 }
 
 pub fn lex(line: &str) -> Result<Vec<Token>, String> {
@@ -31,10 +71,7 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
             '"' | '\'' => {
                 if in_string.is_whitespace() {
                     if !token.is_empty() {
-                        tokens.push(Token {
-                            value: token.clone(),
-                            r#type: TokenType::Word,
-                        });
+                        tokens.push(Token::new(&token));
                         token.clear();
                     }
                     in_string = c;
@@ -47,38 +84,16 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
                     token.clear();
                 }
             }
-            '>' => {
+            '>' | '|' | ';' => {
                 if !token.is_empty() {
-                    tokens.push(Token {
-                        value: token.clone(),
-                        r#type: TokenType::Word,
-                    });
+                    tokens.push(Token::new(&token));
                     token.clear();
                 }
-                tokens.push(Token {
-                    value: '>'.to_string(),
-                    r#type: TokenType::GreaterThan,
-                });
-            }
-            '|' => {
-                if !token.is_empty() {
-                    tokens.push(Token {
-                        value: token.clone(),
-                        r#type: TokenType::Word,
-                    });
-                    token.clear();
-                }
-                tokens.push(Token {
-                    value: '|'.to_string(),
-                    r#type: TokenType::Pipe,
-                });
+                tokens.push(Token::new(&c.to_string()));
             }
             ' ' => {
                 if !token.is_empty() {
-                    tokens.push(Token {
-                        value: token.clone(),
-                        r#type: TokenType::Word,
-                    });
+                    tokens.push(Token::new(&token));
                     token.clear();
                 }
             }
@@ -91,10 +106,7 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
     }
 
     if !token.is_empty() {
-        tokens.push(Token {
-            value: token.clone(),
-            r#type: TokenType::Word,
-        });
+        tokens.push(Token::new(&token));
     }
 
     Ok(tokens)
@@ -416,6 +428,112 @@ mod tests {
                 },
                 Token {
                     value: "file.txt".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_pipe() {
+        let tokens = lex("echo Hello, World! | wc -l").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "Hello,".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "World!".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "|".to_string(),
+                    r#type: TokenType::Pipe
+                },
+                Token {
+                    value: "wc".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "-l".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_semi_colon() {
+        let tokens = lex("echo Hello, World! ; wc -l").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "Hello,".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "World!".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ";".to_string(),
+                    r#type: TokenType::SemiColon
+                },
+                Token {
+                    value: "wc".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "-l".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_double_semi_colon() {
+        let tokens = lex("echo Hello, World! ;; wc -l").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "Hello,".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "World!".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ";".to_string(),
+                    r#type: TokenType::SemiColon
+                },
+                Token {
+                    value: ";".to_string(),
+                    r#type: TokenType::SemiColon
+                },
+                Token {
+                    value: "wc".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "-l".to_string(),
                     r#type: TokenType::Word
                 }
             ]

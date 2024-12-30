@@ -16,11 +16,6 @@ impl PartialEq for Command {
 }
 
 impl Command {
-    pub const NONE: Command = Command {
-        command: CommandType::None,
-        stdin: None,
-    };
-
     pub fn run(&mut self) -> crate::typesystem::Type {
         match &self.command {
             CommandType::Builtin { .. } => builtins::run(self),

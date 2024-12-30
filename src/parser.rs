@@ -10,19 +10,50 @@ impl<'a> Parser<'a> {
         Parser { tokens }
     }
 
-    pub fn parse(&mut self) -> Command {
-        self.parse_statement()
+    pub fn parse(&mut self) -> Vec<Command> {
+        let mut commands = Vec::new();
+
+        while let Some(t) = self.tokens.peek() {
+            if commands.len() > 0 {
+                match t.r#type {
+                    TokenType::SemiColon => {
+                        self.tokens.next();
+                        if self.tokens.peek().is_none() {
+                            break;
+                        }
+                    }
+                    _ => {
+                        return vec![Command {
+                            command: CommandType::Error(format!(
+                                "Expected `;`, found `{}`",
+                                t.value
+                            )),
+                            stdin: None,
+                        }]
+                    }
+                }
+            }
+            let command = self.parse_statement();
+            match command.command {
+                CommandType::Error(_) => {
+                    commands.push(command);
+                    break;
+                }
+                _ => commands.push(command),
+            }
+        }
+        commands
     }
 
     fn parse_statement(&mut self) -> Command {
-        if self.tokens.peek().is_none() {
-            return Command::NONE;
-        }
         let mut command = self.parse_expression();
 
         while let Some(token) = self.tokens.peek() {
             command = match token.r#type {
                 TokenType::GreaterThan | TokenType::Pipe => self.parse_binary(command),
+                TokenType::SemiColon => {
+                    break;
+                }
                 _ => Command {
                     command: CommandType::Error("Unexpected token".to_string()),
                     stdin: None,
@@ -37,6 +68,10 @@ impl<'a> Parser<'a> {
             match token.r#type {
                 TokenType::Word => self.parse_word(),
                 TokenType::String => self.parse_string(),
+                TokenType::SemiColon => Command {
+                    command: CommandType::None,
+                    stdin: None,
+                },
                 _ => Command {
                     command: CommandType::Error("Unexpected token".to_string()),
                     stdin: None,
@@ -133,11 +168,14 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Cd);
-                assert_eq!(args, Vec::<Token>::new());
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Cd);
+                assert_eq!(*args, Vec::<Token>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -156,12 +194,15 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Cd);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Cd);
                 assert_eq!(
-                    args,
+                    *args,
                     vec![Token {
                         value: "/home".to_string(),
                         r#type: TokenType::Word,
@@ -189,12 +230,15 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Cd);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Cd);
                 assert_eq!(
-                    args,
+                    *args,
                     vec![
                         Token {
                             value: "/home".to_string(),
@@ -218,11 +262,14 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Exit);
-                assert_eq!(args, Vec::<Token>::new());
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Exit);
+                assert_eq!(*args, Vec::<Token>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -241,12 +288,15 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Exit);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Exit);
                 assert_eq!(
-                    args,
+                    *args,
                     vec![Token {
                         value: "1".to_string(),
                         r#type: TokenType::Word,
@@ -274,12 +324,15 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Exit);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Exit);
                 assert_eq!(
-                    args,
+                    *args,
                     vec![
                         Token {
                             value: "1".to_string(),
@@ -303,11 +356,14 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Ls);
-                assert_eq!(args, Vec::<Token>::new());
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Ls);
+                assert_eq!(*args, Vec::<Token>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -326,12 +382,15 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Ls);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Ls);
                 assert_eq!(
-                    args,
+                    *args,
                     vec![Token {
                         value: "arg1".to_string(),
                         r#type: TokenType::Word
@@ -359,12 +418,15 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::Builtin { builtin, args } => {
-                assert_eq!(builtin, Builtin::Ls);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Ls);
                 assert_eq!(
-                    args,
+                    *args,
                     vec![
                         Token {
                             value: "arg1".to_string(),
@@ -388,9 +450,9 @@ mod tests {
             r#type: TokenType::String,
         }];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::String(value) => {
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::String(ref value) => {
                 assert_eq!(value, "hello");
             }
             _ => panic!("Expected String"),
@@ -404,17 +466,17 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::External { name, args } => {
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::External { ref name, ref args } => {
                 assert_eq!(
-                    name,
+                    *name,
                     Token {
                         value: "helloworld".to_string(),
                         r#type: TokenType::Word,
                     }
                 );
-                assert_eq!(args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Token>::new());
             }
             _ => panic!("Expected External"),
         }
@@ -434,18 +496,18 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
-            CommandType::External { name, args } => {
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::External { ref name, ref args } => {
                 assert_eq!(
-                    name,
+                    *name,
                     Token {
                         value: "helloworld".to_string(),
                         r#type: TokenType::Word,
                     }
                 );
                 assert_eq!(
-                    args,
+                    *args,
                     vec![
                         Token {
                             value: "arg1".to_string(),
@@ -465,8 +527,8 @@ mod tests {
     #[test]
     fn test_parse_empty() {
         let tokens = Vec::new();
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        assert_eq!(command, Command::NONE);
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        assert_eq!(commands.len(), 0);
     }
 
     #[test]
@@ -486,14 +548,14 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
             CommandType::Redirect {
-                source,
-                destination,
+                ref source,
+                ref destination,
             } => {
                 assert_eq!(
-                    *source,
+                    **source,
                     Command {
                         command: CommandType::Builtin {
                             builtin: Builtin::Ls,
@@ -503,7 +565,7 @@ mod tests {
                     }
                 );
                 assert_eq!(
-                    *destination,
+                    **destination,
                     Command {
                         command: CommandType::String("output.txt".to_string()),
                         stdin: None,
@@ -531,21 +593,21 @@ mod tests {
             },
         ];
 
-        let command = Parser::new(tokens.iter().peekable()).parse();
-        match command.command {
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
             CommandType::Redirect {
-                source,
-                destination,
+                ref source,
+                ref destination,
             } => {
                 assert_eq!(
-                    *source,
+                    **source,
                     Command {
                         command: CommandType::String("ls".to_string()),
                         stdin: None,
                     }
                 );
                 assert_eq!(
-                    *destination,
+                    **destination,
                     Command {
                         command: CommandType::String("output.txt".to_string()),
                         stdin: None,
@@ -553,6 +615,250 @@ mod tests {
                 );
             }
             _ => panic!("Expected Redirect"),
+        }
+    }
+
+    #[test]
+    fn test_parse_pipe() {
+        let tokens = vec![
+            Token {
+                value: "ls".to_string(),
+                r#type: TokenType::Word,
+            },
+            Token {
+                value: "|".to_string(),
+                r#type: TokenType::Pipe,
+            },
+            Token {
+                value: "grep".to_string(),
+                r#type: TokenType::Word,
+            },
+        ];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Pipe {
+                ref source,
+                ref destination,
+            } => {
+                assert_eq!(
+                    **source,
+                    Command {
+                        command: CommandType::Builtin {
+                            builtin: Builtin::Ls,
+                            args: Vec::new()
+                        },
+                        stdin: None,
+                    }
+                );
+                assert_eq!(
+                    **destination,
+                    Command {
+                        command: CommandType::External {
+                            name: Token {
+                                value: "grep".to_string(),
+                                r#type: TokenType::Word
+                            },
+                            args: Vec::new()
+                        },
+                        stdin: None,
+                    }
+                );
+            }
+            _ => panic!("Expected Pipe"),
+        }
+    }
+
+    #[test]
+    fn test_parse_pipe_from_string() {
+        let tokens = vec![
+            Token {
+                value: "ls".to_string(),
+                r#type: TokenType::String,
+            },
+            Token {
+                value: "|".to_string(),
+                r#type: TokenType::Pipe,
+            },
+            Token {
+                value: "grep".to_string(),
+                r#type: TokenType::Word,
+            },
+        ];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].command {
+            CommandType::Pipe {
+                ref source,
+                ref destination,
+            } => {
+                assert_eq!(
+                    **source,
+                    Command {
+                        command: CommandType::String("ls".to_string()),
+                        stdin: None,
+                    }
+                );
+                assert_eq!(
+                    **destination,
+                    Command {
+                        command: CommandType::External {
+                            name: Token {
+                                value: "grep".to_string(),
+                                r#type: TokenType::Word
+                            },
+                            args: Vec::new()
+                        },
+                        stdin: None,
+                    }
+                );
+            }
+            _ => panic!("Expected Pipe"),
+        }
+    }
+
+    #[test]
+    fn test_parse_multiple_commands() {
+        let tokens = vec![
+            Token {
+                value: "ls".to_string(),
+                r#type: TokenType::Word,
+            },
+            Token {
+                value: ";".to_string(),
+                r#type: TokenType::SemiColon,
+            },
+            Token {
+                value: "cd".to_string(),
+                r#type: TokenType::Word,
+            },
+        ];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        assert_eq!(commands.len(), 2);
+
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Ls);
+                assert_eq!(*args, Vec::<Token>::new());
+            }
+            _ => panic!("Expected BuiltIn"),
+        }
+
+        match commands[1].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Cd);
+                assert_eq!(*args, Vec::<Token>::new());
+            }
+            _ => panic!("Expected BuiltIn"),
+        }
+    }
+
+    #[test]
+    fn test_parse_three_commands() {
+        let tokens = vec![
+            Token {
+                value: "ls".to_string(),
+                r#type: TokenType::Word,
+            },
+            Token {
+                value: ";".to_string(),
+                r#type: TokenType::SemiColon,
+            },
+            Token {
+                value: "cd".to_string(),
+                r#type: TokenType::Word,
+            },
+            Token {
+                value: ";".to_string(),
+                r#type: TokenType::SemiColon,
+            },
+            Token {
+                value: "pwd".to_string(),
+                r#type: TokenType::Word,
+            },
+        ];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        assert_eq!(commands.len(), 3);
+
+        match commands[0].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Ls);
+                assert_eq!(*args, Vec::<Token>::new());
+            }
+            _ => panic!("Expected BuiltIn"),
+        }
+
+        match commands[1].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Cd);
+                assert_eq!(*args, Vec::<Token>::new());
+            }
+            _ => panic!("Expected BuiltIn"),
+        }
+
+        match commands[2].command {
+            CommandType::Builtin {
+                ref builtin,
+                ref args,
+            } => {
+                assert_eq!(*builtin, Builtin::Pwd);
+                assert_eq!(*args, Vec::<Token>::new());
+            }
+            _ => panic!("Expected BuiltIn"),
+        }
+    }
+
+    #[test]
+    fn parse_only_semicolon() {
+        let tokens = vec![Token {
+            value: ";".to_string(),
+            r#type: TokenType::SemiColon,
+        }];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        assert_eq!(commands.len(), 1);
+        match commands[0].command {
+            CommandType::None => (),
+            _ => panic!("Expected None"),
+        }
+    }
+
+    #[test]
+    fn parse_multiple_semicolons() {
+        let tokens = vec![
+            Token {
+                value: ";".to_string(),
+                r#type: TokenType::SemiColon,
+            },
+            Token {
+                value: ";".to_string(),
+                r#type: TokenType::SemiColon,
+            },
+        ];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        assert_eq!(commands.len(), 2);
+        match commands[0].command {
+            CommandType::None => (),
+            _ => panic!("Expected None"),
+        }
+        match commands[1].command {
+            CommandType::None => (),
+            _ => panic!("Expected None"),
         }
     }
 }
