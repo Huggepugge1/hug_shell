@@ -35,7 +35,7 @@ fn set_home_dir() -> Type {
     })
 }
 
-pub fn run(args: Vec<Token>) -> Type {
+pub fn run(args: &Vec<Token>) -> Type {
     if args.is_empty() {
         set_home_dir()
     } else if args.len() > 1 {
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn test_run() {
-        let output = run(Vec::new());
+        let output = run(&Vec::new());
         match output {
             Type::Null => {
                 assert_eq!(
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_run_with_arg() {
-        let output = run(vec![Token {
+        let output = run(&vec![Token {
             value: "/".to_string(),
             r#type: crate::lexer::TokenType::Word,
         }]);
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_run_with_invalid_arg() {
-        let output = run(vec![Token {
+        let output = run(&vec![Token {
             value: "invalid".to_string(),
             r#type: crate::lexer::TokenType::Word,
         }]);
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_run_with_too_many_args() {
-        let output = run(vec![
+        let output = run(&vec![
             Token {
                 value: "test_dir".to_string(),
                 r#type: crate::lexer::TokenType::String,

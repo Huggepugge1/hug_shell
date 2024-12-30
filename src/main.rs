@@ -3,6 +3,7 @@ use rustyline;
 mod command;
 mod lexer;
 mod parser;
+mod redirect;
 mod typesystem;
 
 // Built-in commands
@@ -37,24 +38,14 @@ fn main() -> rustyline::Result<()> {
         };
 
         let command = match tokens {
-            Ok(tokens) => parser::parse(tokens),
+            Ok(tokens) => parser::Parser::new(tokens.iter().peekable()).parse(),
             Err(e) => {
                 eprintln!("{}", e);
                 continue;
             }
         };
 
-        let output = match command {
-            command::Command::Builtin { .. } => command::builtins::run(command),
-            command::Command::External { .. } => command::external::run(command),
-            command::Command::String(s) => typesystem::Type::String(s),
-            command::Command::None => continue,
-
-            command::Command::Error(e) => {
-                eprintln!("{}", e);
-                continue;
-            }
-        };
+        let output = command.run();
 
         match output {
             typesystem::Type::Null => (),

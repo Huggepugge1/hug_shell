@@ -8,6 +8,7 @@ pub struct Token {
 pub enum TokenType {
     Word,
     String,
+    GreaterThan,
 }
 
 pub fn lex(line: &str) -> Result<Vec<Token>, String> {
@@ -44,6 +45,19 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
                     });
                     token.clear();
                 }
+            }
+            '>' => {
+                if !token.is_empty() {
+                    tokens.push(Token {
+                        value: token.clone(),
+                        r#type: TokenType::Word,
+                    });
+                    token.clear();
+                }
+                tokens.push(Token {
+                    value: '>'.to_string(),
+                    r#type: TokenType::GreaterThan,
+                });
             }
             ' ' => {
                 if !token.is_empty() {
@@ -206,6 +220,188 @@ mod tests {
                 },
                 Token {
                     value: "World!".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_word_with_space() {
+        let tokens = lex("echo Hello, World! ").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "Hello,".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: "World!".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than() {
+        let tokens = lex("echo > file.txt").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_space() {
+        let tokens = lex("echo > file.txt ").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
+                    r#type: TokenType::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_string() {
+        let tokens = lex("echo > 'file.txt'").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
+                    r#type: TokenType::String
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_string_and_space() {
+        let tokens = lex("echo > 'file.txt' ").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
+                    r#type: TokenType::String
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_string_double() {
+        let tokens = lex("echo > \"file.txt\"").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
+                    r#type: TokenType::String
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_string_double_and_space() {
+        let tokens = lex("echo > \"file.txt\" ").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    r#type: TokenType::Word
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
+                    r#type: TokenType::String
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_string_mixed() {
+        let tokens = lex("echo > 'file.txt\"").unwrap_err();
+        assert_eq!(tokens, "Syntax Error: Unterminated string");
+    }
+
+    #[test]
+    fn test_lexer_greater_than_with_string_and_file() {
+        let tokens = lex("\"Hello, World!\" > file.txt").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "Hello, World!".to_string(),
+                    r#type: TokenType::String
+                },
+                Token {
+                    value: ">".to_string(),
+                    r#type: TokenType::GreaterThan
+                },
+                Token {
+                    value: "file.txt".to_string(),
                     r#type: TokenType::Word
                 }
             ]

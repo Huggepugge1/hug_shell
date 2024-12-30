@@ -2,35 +2,79 @@ use crate::command::builtins;
 use crate::command::Command;
 use crate::lexer::{Token, TokenType};
 
-pub fn parse(tokens: Vec<Token>) -> Command {
-    if tokens.is_empty() {
-        return Command::None;
+pub struct Parser<'a> {
+    tokens: std::iter::Peekable<std::slice::Iter<'a, Token>>,
+}
+impl<'a> Parser<'a> {
+    pub fn new(tokens: std::iter::Peekable<std::slice::Iter<'a, Token>>) -> Self {
+        Parser { tokens }
     }
 
-    match tokens[0].r#type {
-        TokenType::Word => {
-            if builtins::is_builtin(&tokens[0].value) {
-                let builtin = builtins::get(&tokens[0].value);
-                let args = match tokens.len() > 1 {
-                    true => tokens[1..].into_iter().map(|t| t.clone()).collect(),
-                    false => Vec::new(),
-                };
-                Command::Builtin { builtin, args }
+    pub fn parse(&mut self) -> Command {
+        self.parse_statement()
+    }
+
+    fn parse_statement(&mut self) -> Command {
+        let command = self.parse_expression();
+
+        if let Some(token) = self.tokens.next() {
+            if token.r#type != TokenType::GreaterThan {
+                return Command::Error("Unexpected token".to_string());
             } else {
-                let args = match tokens.len() > 1 {
-                    true => tokens[1..].into_iter().map(|t| t.clone()).collect(),
-                    false => Vec::new(),
-                };
-                let name = tokens[0].clone();
-                Command::External { name, args }
+                return self.parse_redirection(command);
             }
         }
-        TokenType::String => {
-            if tokens.len() > 1 {
-                Command::Error("Too many arguments".to_string())
-            } else {
-                Command::String(tokens[0].value.clone())
+        command
+    }
+
+    fn parse_expression(&mut self) -> Command {
+        if let Some(token) = self.tokens.peek() {
+            match token.r#type {
+                TokenType::Word => self.parse_word(),
+                TokenType::String => self.parse_string(),
+                _ => Command::Error("Unexpected token".to_string()),
             }
+        } else {
+            Command::None
+        }
+    }
+
+    fn parse_word(&mut self) -> Command {
+        let token = self.tokens.next().unwrap();
+        let builtin = if builtins::is_builtin(&token.value) {
+            Some(builtins::get(&token.value))
+        } else {
+            None
+        };
+        let mut args = Vec::new();
+
+        while let Some(token) = self.tokens.peek() {
+            match token.r#type {
+                TokenType::Word => args.push(self.tokens.next().unwrap().clone()),
+                TokenType::String => args.push(self.tokens.next().unwrap().clone()),
+                _ => break,
+            }
+        }
+
+        if let Some(builtin) = builtin {
+            Command::Builtin { builtin, args }
+        } else {
+            Command::External {
+                name: token.clone(),
+                args,
+            }
+        }
+    }
+
+    fn parse_string(&mut self) -> Command {
+        let token = self.tokens.next().unwrap();
+        Command::String(token.value.clone())
+    }
+
+    fn parse_redirection(&mut self, command: Command) -> Command {
+        Command::Redirect {
+            source: Box::new(command),
+            destination: Box::new(self.parse_expression()),
         }
     }
 }
@@ -47,7 +91,7 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Cd);
@@ -70,7 +114,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Cd);
@@ -103,7 +147,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Cd);
@@ -132,7 +176,7 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Exit);
@@ -155,7 +199,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Exit);
@@ -188,7 +232,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Exit);
@@ -217,7 +261,7 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Ls);
@@ -240,7 +284,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Ls);
@@ -273,7 +317,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::Builtin { builtin, args } => {
                 assert_eq!(builtin, Builtin::Ls);
@@ -302,7 +346,7 @@ mod tests {
             r#type: TokenType::String,
         }];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::String(value) => {
                 assert_eq!(value, "hello");
@@ -318,7 +362,7 @@ mod tests {
             r#type: TokenType::Word,
         }];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::External { name, args } => {
                 assert_eq!(
@@ -348,7 +392,7 @@ mod tests {
             },
         ];
 
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         match command {
             Command::External { name, args } => {
                 assert_eq!(
@@ -379,7 +423,73 @@ mod tests {
     #[test]
     fn test_parse_empty() {
         let tokens = Vec::new();
-        let command = parse(tokens);
+        let command = Parser::new(tokens.iter().peekable()).parse();
         assert_eq!(command, Command::None);
+    }
+
+    #[test]
+    fn test_parse_redirect() {
+        let tokens = vec![
+            Token {
+                value: "ls".to_string(),
+                r#type: TokenType::Word,
+            },
+            Token {
+                value: ">".to_string(),
+                r#type: TokenType::GreaterThan,
+            },
+            Token {
+                value: "output.txt".to_string(),
+                r#type: TokenType::String,
+            },
+        ];
+
+        let command = Parser::new(tokens.iter().peekable()).parse();
+        match command {
+            Command::Redirect {
+                source,
+                destination,
+            } => {
+                assert_eq!(
+                    *source,
+                    Command::Builtin {
+                        builtin: Builtin::Ls,
+                        args: Vec::new()
+                    }
+                );
+                assert_eq!(*destination, Command::String("output.txt".to_string()));
+            }
+            _ => panic!("Expected Redirect"),
+        }
+    }
+
+    #[test]
+    fn test_parse_redirect_from_string() {
+        let tokens = vec![
+            Token {
+                value: "ls".to_string(),
+                r#type: TokenType::String,
+            },
+            Token {
+                value: ">".to_string(),
+                r#type: TokenType::GreaterThan,
+            },
+            Token {
+                value: "output.txt".to_string(),
+                r#type: TokenType::String,
+            },
+        ];
+
+        let command = Parser::new(tokens.iter().peekable()).parse();
+        match command {
+            Command::Redirect {
+                source,
+                destination,
+            } => {
+                assert_eq!(*source, Command::String("ls".to_string()));
+                assert_eq!(*destination, Command::String("output.txt".to_string()));
+            }
+            _ => panic!("Expected Redirect"),
+        }
     }
 }
