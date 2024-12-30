@@ -134,8 +134,6 @@ pub mod external {
         use super::super::Command;
         use super::*;
 
-        use std::os::unix::process::ExitStatusExt;
-
         use crate::command::builtins::BuiltinExitCode;
         use crate::lexer::{Token, TokenType};
         use crate::typesystem::Type;
