@@ -9,6 +9,7 @@ pub enum TokenType {
     Word,
     String,
     GreaterThan,
+    Pipe,
 }
 
 pub fn lex(line: &str) -> Result<Vec<Token>, String> {
@@ -57,6 +58,19 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
                 tokens.push(Token {
                     value: '>'.to_string(),
                     r#type: TokenType::GreaterThan,
+                });
+            }
+            '|' => {
+                if !token.is_empty() {
+                    tokens.push(Token {
+                        value: token.clone(),
+                        r#type: TokenType::Word,
+                    });
+                    token.clear();
+                }
+                tokens.push(Token {
+                    value: '|'.to_string(),
+                    r#type: TokenType::Pipe,
                 });
             }
             ' ' => {

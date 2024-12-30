@@ -1,9 +1,47 @@
 use super::lexer::Token;
 
+use crate::pipes;
 use crate::redirect;
 
+#[derive(Debug)]
+pub struct Command {
+    pub command: CommandType,
+    pub stdin: Option<crate::typesystem::Type>,
+}
+
+impl PartialEq for Command {
+    fn eq(&self, other: &Self) -> bool {
+        self.command == other.command
+    }
+}
+
+impl Command {
+    pub const NONE: Command = Command {
+        command: CommandType::None,
+        stdin: None,
+    };
+
+    pub fn run(&mut self) -> crate::typesystem::Type {
+        match &self.command {
+            CommandType::Builtin { .. } => builtins::run(self),
+            CommandType::External { .. } => external::run(self),
+            CommandType::String(s) => crate::typesystem::Type::String(s.clone()),
+
+            CommandType::Redirect { .. } => redirect::run(self),
+            CommandType::Pipe { .. } => pipes::run(self),
+
+            CommandType::None => crate::typesystem::Type::Null,
+
+            CommandType::Error(e) => crate::typesystem::Type::Error {
+                message: e.clone(),
+                code: 1,
+            },
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
-pub enum Command {
+pub enum CommandType {
     Builtin {
         builtin: Builtin,
         args: Vec<Token>,
@@ -18,28 +56,13 @@ pub enum Command {
         source: Box<Command>,
         destination: Box<Command>,
     },
+    Pipe {
+        source: Box<Command>,
+        destination: Box<Command>,
+    },
 
     None,
     Error(String),
-}
-
-impl Command {
-    pub fn run(&self) -> crate::typesystem::Type {
-        match self {
-            Command::Builtin { .. } => builtins::run(self),
-            Command::External { .. } => external::run(self),
-            Command::String(s) => crate::typesystem::Type::String(s.clone()),
-
-            Command::Redirect { .. } => redirect::run(self),
-
-            Command::None => crate::typesystem::Type::Null,
-
-            Command::Error(e) => crate::typesystem::Type::Error {
-                message: e.clone(),
-                code: 1,
-            },
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -51,7 +74,7 @@ pub enum Builtin {
 }
 
 pub mod builtins {
-    use super::{Builtin, Command};
+    use super::{Builtin, Command, CommandType};
 
     use crate::typesystem::Type;
 
@@ -88,8 +111,8 @@ pub mod builtins {
     }
 
     pub fn run(command: &Command) -> Type {
-        match command {
-            Command::Builtin { builtin, args } => match builtin {
+        match &command.command {
+            CommandType::Builtin { builtin, args } => match builtin {
                 Builtin::Cd => cd::run(args),
                 Builtin::Exit => std::process::exit(0),
                 Builtin::Ls => ls::run(args),
@@ -138,14 +161,16 @@ pub mod builtins {
 }
 
 pub mod external {
-    use super::Command;
+    use super::{Command, CommandType};
+
+    use std::io::Write;
 
     use crate::command::builtins::handle_builtin_error;
     use crate::typesystem::Type;
 
     pub fn run(command: &Command) -> Type {
-        match command {
-            Command::External { name, args } => {
+        match &command.command {
+            CommandType::External { name, args } => {
                 match std::process::Command::new(name.value.clone())
                     .args(
                         &args
@@ -153,9 +178,29 @@ pub mod external {
                             .map(|t| t.value.clone())
                             .collect::<Vec<String>>(),
                     )
+                    .stdin(match &command.stdin {
+                        Some(Type::File { file, .. }) => {
+                            std::process::Stdio::from(file.try_clone().unwrap())
+                        }
+                        _ => std::process::Stdio::piped(),
+                    })
+                    .stdout(std::process::Stdio::piped())
                     .spawn()
                 {
-                    Ok(child) => Type::Output(child.wait_with_output().unwrap()),
+                    Ok(mut child) => {
+                        match &command.stdin {
+                            Some(Type::Output(o)) => {
+                                let stdin = child.stdin.as_mut().unwrap();
+                                stdin.write_all(&o.stdout).unwrap();
+                            }
+                            Some(t) => {
+                                let stdin = child.stdin.as_mut().unwrap();
+                                stdin.write_all(&t.to_string().as_bytes()).unwrap();
+                            }
+                            _ => (),
+                        }
+                        Type::Output(child.wait_with_output().unwrap())
+                    }
                     Err(e) => handle_builtin_error(e),
                 }
             }
@@ -165,7 +210,7 @@ pub mod external {
 
     #[cfg(test)]
     mod tests {
-        use super::super::Command;
+        use super::super::CommandType;
         use super::*;
 
         use crate::command::builtins::BuiltinExitCode;
@@ -188,20 +233,27 @@ pub mod external {
                     .unwrap(),
             )
             .unwrap();
-            let command = Command::External {
-                name: Token {
-                    value: "cat".to_string(),
-                    r#type: TokenType::Word,
+            let command = Command {
+                command: CommandType::External {
+                    name: Token {
+                        value: "cat".to_string(),
+                        r#type: TokenType::Word,
+                    },
+                    args: vec![Token {
+                        value: "Cargo.toml".to_string(),
+                        r#type: TokenType::Word,
+                    }],
                 },
-                args: vec![Token {
-                    value: "Cargo.toml".to_string(),
-                    r#type: TokenType::Word,
-                }],
+                stdin: None,
             };
             let output = run(&command);
             match output {
                 Type::Output(o) => {
                     assert_eq!(o.status.code().unwrap(), 0);
+                    assert_eq!(
+                        String::from_utf8_lossy(&o.stdout),
+                        include_str!("../Cargo.toml")
+                    );
                 }
                 _ => panic!("Expected Type::Output"),
             }
@@ -209,12 +261,15 @@ pub mod external {
 
         #[test]
         fn test_run_with_invalid_command() {
-            let command = Command::External {
-                name: Token {
-                    value: "helloworld".to_string(),
-                    r#type: TokenType::Word,
+            let command = Command {
+                command: CommandType::External {
+                    name: Token {
+                        value: "invalid".to_string(),
+                        r#type: TokenType::Word,
+                    },
+                    args: vec![],
                 },
-                args: Vec::new(),
+                stdin: None,
             };
             let output = run(&command);
             match output {
