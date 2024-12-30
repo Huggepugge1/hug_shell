@@ -8,7 +8,11 @@ use std::path::PathBuf;
 pub enum Type {
     Output(std::process::Output),
 
-    File { file: File, path: PathBuf },
+    File {
+        file: File,
+        path: PathBuf,
+        full_path: bool,
+    },
 
     String(String),
     Array(Vec<Type>),
@@ -17,7 +21,10 @@ pub enum Type {
     Boolean(bool),
     Null,
 
-    Error { message: String, code: i32 },
+    Error {
+        message: String,
+        code: i32,
+    },
 }
 
 impl PartialEq for Type {
@@ -74,18 +81,22 @@ impl std::fmt::Display for Type {
                 false => write!(f, "{}", String::from_utf8_lossy(&o.stderr)),
             },
 
-            Type::File { file, path } => color_file(file, path, f),
+            Type::File {
+                file,
+                path,
+                full_path,
+            } => color_file(file, path, f, *full_path),
 
-            Type::String(s) => write!(f, "{}\n", format!("\"{s}\"").green().to_string()),
-            Type::Array(a) => write!(f, "{}\n", array_to_string(a, true).to_string()),
-            Type::Integer(i) => write!(f, "{}\n", i.to_string().white().to_string()),
-            Type::Float(fl) => write!(f, "{}\n", fl.to_string().white().to_string()),
-            Type::Boolean(b) => write!(f, "{}\n", b.to_string().bright_magenta().to_string()),
-            Type::Null => write!(f, "{}\n", "null".to_string().yellow().to_string()),
+            Type::String(s) => write!(f, "{}", format!("\"{s}\"").green().to_string()),
+            Type::Array(a) => write!(f, "{}", array_to_string(a, true).to_string()),
+            Type::Integer(i) => write!(f, "{}", i.to_string().white().to_string()),
+            Type::Float(fl) => write!(f, "{}", fl.to_string().white().to_string()),
+            Type::Boolean(b) => write!(f, "{}", b.to_string().bright_magenta().to_string()),
+            Type::Null => write!(f, "{}", "null".to_string().yellow().to_string()),
 
             Type::Error { message, code } => write!(
                 f,
-                "{}{}\nExited With status {}\n",
+                "{}{}\nExited With status {}",
                 "Error: ".red().to_string(),
                 message,
                 code
@@ -102,7 +113,15 @@ impl Type {
                 false => String::from_utf8_lossy(&o.stderr).to_string(),
             },
 
-            Type::File { path, .. } => path.file_name().unwrap().to_str().unwrap().to_string(),
+            Type::File {
+                path, full_path, ..
+            } => {
+                if *full_path {
+                    path.to_str().unwrap().to_string()
+                } else {
+                    path.file_name().unwrap().to_str().unwrap().to_string()
+                }
+            }
 
             Type::String(s) => format!("\"{s}\""),
             Type::Array(a) => array_to_string(a, false),
@@ -140,8 +159,13 @@ fn color_file(
     file: &File,
     path: &PathBuf,
     f: &mut std::fmt::Formatter<'_>,
+    full_path: bool,
 ) -> Result<(), std::fmt::Error> {
-    let path_name = path.file_name().unwrap().to_str().unwrap();
+    let path_name = if full_path {
+        path.to_str().unwrap()
+    } else {
+        path.file_name().unwrap().to_str().unwrap()
+    };
     match file.metadata() {
         Ok(metadata) => {
             if metadata.is_dir() {

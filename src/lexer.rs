@@ -1,7 +1,7 @@
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     pub value: String,
-    pub r#type: TokenType,
+    pub kind: TokenKind,
 }
 
 impl Token {
@@ -9,35 +9,35 @@ impl Token {
         match value {
             ">" => Token {
                 value: value.to_string(),
-                r#type: TokenType::GreaterThan,
+                kind: TokenKind::GreaterThan,
             },
             "|" => Token {
                 value: value.to_string(),
-                r#type: TokenType::Pipe,
+                kind: TokenKind::Pipe,
             },
             ";" => Token {
                 value: value.to_string(),
-                r#type: TokenType::SemiColon,
+                kind: TokenKind::SemiColon,
             },
             "true" | "false" => Token {
                 value: value.to_string(),
-                r#type: TokenType::Boolean,
+                kind: TokenKind::Boolean,
             },
             _ => {
                 if value.starts_with('\'') && value.ends_with('\'') {
                     Token {
                         value: value[1..value.len() - 1].to_string(),
-                        r#type: TokenType::String,
+                        kind: TokenKind::String,
                     }
                 } else if value.starts_with('"') && value.ends_with('"') {
                     Token {
                         value: value[1..value.len() - 1].to_string(),
-                        r#type: TokenType::String,
+                        kind: TokenKind::String,
                     }
                 } else {
                     Token {
                         value: value.to_string(),
-                        r#type: TokenType::Word,
+                        kind: TokenKind::Word,
                     }
                 }
             }
@@ -46,7 +46,7 @@ impl Token {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum TokenType {
+pub enum TokenKind {
     Word,
     String,
     Boolean,
@@ -84,7 +84,7 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
                     in_string = ' ';
                     tokens.push(Token {
                         value: token.clone(),
-                        r#type: TokenType::String,
+                        kind: TokenKind::String,
                     });
                     token.clear();
                 }
@@ -129,11 +129,11 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello, World!".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -153,11 +153,11 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello, World!".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -189,11 +189,11 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello, \"World\"!".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -207,11 +207,11 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello, 'World'!".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -225,11 +225,11 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello, World!".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -243,11 +243,11 @@ mod tests {
             vec![
                 Token {
                     value: "true".to_string(),
-                    r#type: TokenType::Boolean
+                    kind: TokenKind::Boolean
                 },
                 Token {
                     value: "false".to_string(),
-                    r#type: TokenType::Boolean
+                    kind: TokenKind::Boolean
                 }
             ]
         );
@@ -261,15 +261,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello,".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "World!".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -283,15 +283,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello,".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "World!".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -305,15 +305,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -327,15 +327,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -349,15 +349,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -371,15 +371,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -393,15 +393,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -415,15 +415,15 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 }
             ]
         );
@@ -443,15 +443,15 @@ mod tests {
             vec![
                 Token {
                     value: "Hello, World!".to_string(),
-                    r#type: TokenType::String
+                    kind: TokenKind::String
                 },
                 Token {
                     value: ">".to_string(),
-                    r#type: TokenType::GreaterThan
+                    kind: TokenKind::GreaterThan
                 },
                 Token {
                     value: "file.txt".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -465,27 +465,27 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello,".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "World!".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "|".to_string(),
-                    r#type: TokenType::Pipe
+                    kind: TokenKind::Pipe
                 },
                 Token {
                     value: "wc".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "-l".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -499,27 +499,27 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello,".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "World!".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ";".to_string(),
-                    r#type: TokenType::SemiColon
+                    kind: TokenKind::SemiColon
                 },
                 Token {
                     value: "wc".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "-l".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );
@@ -533,31 +533,31 @@ mod tests {
             vec![
                 Token {
                     value: "echo".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "Hello,".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "World!".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: ";".to_string(),
-                    r#type: TokenType::SemiColon
+                    kind: TokenKind::SemiColon
                 },
                 Token {
                     value: ";".to_string(),
-                    r#type: TokenType::SemiColon
+                    kind: TokenKind::SemiColon
                 },
                 Token {
                     value: "wc".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 },
                 Token {
                     value: "-l".to_string(),
-                    r#type: TokenType::Word
+                    kind: TokenKind::Word
                 }
             ]
         );

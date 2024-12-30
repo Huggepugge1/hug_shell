@@ -1,9 +1,9 @@
-use crate::command::{Command, CommandType};
+use crate::command::{Command, CommandKind};
 use crate::typesystem::Type;
 
 pub fn run(command: &mut Command) -> Type {
-    match &mut command.command {
-        CommandType::Pipe {
+    match &mut command.kind {
+        CommandKind::Pipe {
             source,
             destination,
         } => {
@@ -21,25 +21,25 @@ mod tests {
 
     use colored::Colorize;
 
-    use crate::lexer::{Token, TokenType};
+    use crate::lexer::{Token, TokenKind};
 
     #[test]
     fn test_run() {
         let mut command = Command {
-            command: CommandType::Pipe {
+            kind: CommandKind::Pipe {
                 source: Box::new(Command {
-                    command: CommandType::String("Hello, world!".into()),
+                    kind: CommandKind::String("Hello, world!".into()),
                     stdin: None,
                 }),
                 destination: Box::new(Command {
-                    command: CommandType::External {
+                    kind: CommandKind::External {
                         name: Token {
                             value: "grep".into(),
-                            r#type: TokenType::Word,
+                            kind: TokenKind::Word,
                         },
                         args: vec![Token {
                             value: "world".into(),
-                            r#type: TokenType::Word,
+                            kind: TokenKind::Word,
                         }],
                     },
                     stdin: None,
@@ -62,22 +62,22 @@ mod tests {
     #[test]
     fn test_run_with_multiple_pipes() {
         let mut command = Command {
-            command: CommandType::Pipe {
+            kind: CommandKind::Pipe {
                 source: Box::new(Command {
-                    command: CommandType::Pipe {
+                    kind: CommandKind::Pipe {
                         source: Box::new(Command {
-                            command: CommandType::String("Hello, world!\n".into()),
+                            kind: CommandKind::String("Hello, world!\n".into()),
                             stdin: None,
                         }),
                         destination: Box::new(Command {
-                            command: CommandType::External {
+                            kind: CommandKind::External {
                                 name: Token {
                                     value: "grep".into(),
-                                    r#type: TokenType::Word,
+                                    kind: TokenKind::Word,
                                 },
                                 args: vec![Token {
                                     value: "world".into(),
-                                    r#type: TokenType::Word,
+                                    kind: TokenKind::Word,
                                 }],
                             },
                             stdin: None,
@@ -86,10 +86,10 @@ mod tests {
                     stdin: None,
                 }),
                 destination: Box::new(Command {
-                    command: CommandType::External {
+                    kind: CommandKind::External {
                         name: Token {
                             value: "wc".into(),
-                            r#type: TokenType::Word,
+                            kind: TokenKind::Word,
                         },
                         args: vec![],
                     },

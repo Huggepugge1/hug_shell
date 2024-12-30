@@ -1,17 +1,17 @@
 use std::io::Write;
 
-use crate::command::{Command, CommandType};
+use crate::command::{Command, CommandKind};
 use crate::typesystem::Type;
 
 pub fn run(command: &mut Command) -> Type {
-    match &mut command.command {
-        CommandType::Redirect {
+    match &mut command.kind {
+        CommandKind::Redirect {
             source,
             destination,
         } => {
             let source_output = source.run();
-            match &destination.command {
-                CommandType::String(s) => {
+            match &destination.kind {
+                CommandKind::String(s) => {
                     let mut file = std::fs::OpenOptions::new()
                         .write(true)
                         .create(true)
@@ -39,13 +39,13 @@ mod tests {
     #[test]
     fn test_run() {
         let mut command = Command {
-            command: CommandType::Redirect {
+            kind: CommandKind::Redirect {
                 source: Box::new(Command {
-                    command: CommandType::String("Hello, world!".into()),
+                    kind: CommandKind::String("Hello, world!".into()),
                     stdin: None,
                 }),
                 destination: Box::new(Command {
-                    command: CommandType::String("test.txt".into()),
+                    kind: CommandKind::String("test.txt".into()),
                     stdin: None,
                 }),
             },
