@@ -60,33 +60,14 @@ pub enum TokenKind {
 pub fn lex(line: &str) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
 
-    let mut in_string = ' ';
     let mut token = String::new();
 
     let mut iter = line.chars().peekable();
     while let Some(c) = iter.next() {
-        if in_string != ' ' && c == '\n' {
-            return Err("Syntax Error: Unterminated string".to_string());
-        }
-        if in_string != ' ' && c != in_string {
-            token.push(c);
-            continue;
-        }
         match c {
             '"' | '\'' => {
-                if in_string.is_whitespace() {
-                    if !token.is_empty() {
-                        tokens.push(Token::new(&token));
-                        token.clear();
-                    }
-                    in_string = c;
-                } else {
-                    in_string = ' ';
-                    tokens.push(Token {
-                        value: token.clone(),
-                        kind: TokenKind::String,
-                    });
-                    token.clear();
+                if let Some(value) = lex_string(&mut token, &mut tokens, c, &mut iter) {
+                    return value;
                 }
             }
             '>' | '|' | ';' => {
@@ -106,15 +87,42 @@ pub fn lex(line: &str) -> Result<Vec<Token>, String> {
         }
     }
 
-    if in_string != ' ' {
-        return Err("Syntax Error: Unterminated string".to_string());
-    }
-
     if !token.is_empty() {
         tokens.push(Token::new(&token));
     }
 
     Ok(tokens)
+}
+
+fn lex_string(
+    token: &mut String,
+    tokens: &mut Vec<Token>,
+    c: char,
+    iter: &mut std::iter::Peekable<std::str::Chars<'_>>,
+) -> Option<Result<Vec<Token>, String>> {
+    if !token.is_empty() {
+        tokens.push(Token::new(&*token));
+        token.clear();
+    }
+
+    let mut current = '\0';
+    let string_start = c;
+    token.push(c);
+
+    while let Some(c) = iter.next() {
+        current = c;
+        token.push(c);
+        if c == string_start {
+            tokens.push(Token::new(&*token));
+            token.clear();
+            break;
+        }
+    }
+
+    if current != string_start {
+        return Some(Err("Syntax Error: Unterminated string".to_string()));
+    }
+    None
 }
 
 #[cfg(test)]
