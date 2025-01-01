@@ -4,15 +4,11 @@ use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Output(std::process::Output),
 
-    File {
-        file: File,
-        path: PathBuf,
-        full_path: bool,
-    },
+    File { path: PathBuf, full_path: bool },
 
     String(String),
     Array(Vec<Type>),
@@ -21,10 +17,7 @@ pub enum Type {
     Boolean(bool),
     Null,
 
-    Error {
-        message: String,
-        code: i32,
-    },
+    Error { message: String, code: i32 },
 }
 
 impl PartialEq for Type {
@@ -81,16 +74,12 @@ impl std::fmt::Display for Type {
                 false => write!(f, "{}", String::from_utf8_lossy(&o.stderr)),
             },
 
-            Type::File {
-                file,
-                path,
-                full_path,
-            } => color_file(file, path, f, *full_path),
+            Type::File { path, full_path } => color_file(path, f, *full_path),
 
             Type::String(s) => write!(f, "{}", format!("\"{s}\"").green().to_string()),
-            Type::Array(a) => write!(f, "{}", array_to_string(a, true, true).to_string()),
-            Type::Integer(i) => write!(f, "{}", i.to_string().white().to_string()),
-            Type::Float(fl) => write!(f, "{}", fl.to_string().white().to_string()),
+            Type::Array(a) => write!(f, "{}", array_to_string(a, true).to_string()),
+            Type::Integer(i) => write!(f, "{}", i.to_string().cyan().to_string()),
+            Type::Float(fl) => write!(f, "{}", fl.to_string().cyan().to_string()),
             Type::Boolean(b) => write!(f, "{}", b.to_string().bright_magenta().to_string()),
             Type::Null => write!(f, "{}", "null".to_string().yellow().to_string()),
 
@@ -124,7 +113,7 @@ impl Type {
             }
 
             Type::String(s) => format!("\"{s}\""),
-            Type::Array(a) => array_to_string(a, false, true),
+            Type::Array(a) => array_to_string(a, false),
             Type::Integer(i) => i.to_string(),
             Type::Float(fl) => fl.to_string(),
             Type::Boolean(b) => b.to_string(),
@@ -154,7 +143,7 @@ impl Type {
             }
 
             Type::String(s) => s.to_string(),
-            Type::Array(a) => array_to_string(a, false, false),
+            Type::Array(a) => array_to_string(a, false),
             Type::Integer(i) => i.to_string(),
             Type::Float(fl) => fl.to_string(),
             Type::Boolean(b) => b.to_string(),
@@ -167,36 +156,25 @@ impl Type {
     }
 }
 
-fn array_to_string(array: &Vec<Type>, colored: bool, decorated: bool) -> String {
-    let mut s = String::new();
-    if decorated {
-        s.push_str("[\n");
-    }
+fn array_to_string(array: &Vec<Type>, colored: bool) -> String {
+    let mut string = String::new();
+    string.push_str("[\n");
     for (i, item) in array.iter().enumerate() {
-        if decorated {
-            s.push_str("  ");
-        }
+        string.push_str("  ");
         if colored {
-            s.push_str(&item.to_string());
+            string.push_str(&item.to_string());
         } else {
-            s.push_str(&item.to_colorless_string());
+            string.push_str(&item.to_colorless_string());
         }
         if i < array.len() - 1 {
-            if decorated {
-                s.push_str(",\n");
-            } else {
-                s.push_str(" ");
-            }
+            string.push_str(",\n");
         }
     }
-    if decorated {
-        s.push_str("\n]");
-    }
-    s
+    string.push_str("\n]");
+    string
 }
 
 fn color_file(
-    file: &File,
     path: &PathBuf,
     f: &mut std::fmt::Formatter<'_>,
     full_path: bool,
@@ -205,6 +183,12 @@ fn color_file(
         path.to_str().unwrap()
     } else {
         path.file_name().unwrap().to_str().unwrap()
+    };
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) => {
+            return write!(f, "{:?}", e);
+        }
     };
     match file.metadata() {
         Ok(metadata) => {

@@ -34,6 +34,16 @@ impl Token {
                         value: value[1..value.len() - 1].to_string(),
                         kind: TokenKind::String,
                     }
+                } else if value.parse::<i64>().is_ok() {
+                    Token {
+                        value: value.to_string(),
+                        kind: TokenKind::Integer,
+                    }
+                } else if value.parse::<f64>().is_ok() {
+                    Token {
+                        value: value.to_string(),
+                        kind: TokenKind::Float,
+                    }
                 } else {
                     Token {
                         value: value.to_string(),
@@ -50,6 +60,8 @@ pub enum TokenKind {
     Word,
     String,
     Boolean,
+    Integer,
+    Float,
 
     GreaterThan,
     Pipe,
@@ -566,6 +578,42 @@ mod tests {
                 Token {
                     value: "-l".to_string(),
                     kind: TokenKind::Word
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_integer() {
+        let tokens = lex("echo 123").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    kind: TokenKind::Word
+                },
+                Token {
+                    value: "123".to_string(),
+                    kind: TokenKind::Integer
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_float() {
+        let tokens = lex("echo 123.456").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token {
+                    value: "echo".to_string(),
+                    kind: TokenKind::Word
+                },
+                Token {
+                    value: "123.456".to_string(),
+                    kind: TokenKind::Float
                 }
             ]
         );

@@ -67,6 +67,8 @@ impl<'a> Parser<'a> {
                 TokenKind::Word => self.parse_word(),
                 TokenKind::String => self.parse_string(),
                 TokenKind::Boolean => self.parse_boolean(),
+                TokenKind::Integer => self.parse_integer(),
+                TokenKind::Float => self.parse_float(),
                 TokenKind::SemiColon => Command {
                     kind: CommandKind::None,
                     stdin: None,
@@ -91,15 +93,8 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        let mut args = Vec::new();
 
-        while let Some(token) = self.tokens.peek() {
-            match token.kind {
-                TokenKind::Word => args.push(self.tokens.next().unwrap().clone()),
-                TokenKind::String => args.push(self.tokens.next().unwrap().clone()),
-                _ => break,
-            }
-        }
+        let args = self.parse_args();
 
         if let Some(builtin) = builtin {
             Command {
@@ -117,6 +112,51 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_args(&mut self) -> Vec<Command> {
+        let mut args = Vec::new();
+        while let Some(token) = self.tokens.peek() {
+            match token.kind {
+                TokenKind::Word => {
+                    args.push(Command {
+                        kind: CommandKind::String(token.value.clone()),
+                        stdin: None,
+                    });
+                    self.tokens.next();
+                }
+                TokenKind::String => {
+                    args.push(Command {
+                        kind: CommandKind::String(token.value.clone()),
+                        stdin: None,
+                    });
+                    self.tokens.next();
+                }
+                TokenKind::Boolean => {
+                    args.push(Command {
+                        kind: CommandKind::Boolean(token.value.parse().unwrap()),
+                        stdin: None,
+                    });
+                    self.tokens.next();
+                }
+                TokenKind::Integer => {
+                    args.push(Command {
+                        kind: CommandKind::Integer(token.value.parse().unwrap()),
+                        stdin: None,
+                    });
+                    self.tokens.next();
+                }
+                TokenKind::Float => {
+                    args.push(Command {
+                        kind: CommandKind::Float(token.value.parse().unwrap()),
+                        stdin: None,
+                    });
+                    self.tokens.next();
+                }
+                _ => break,
+            }
+        }
+        args
+    }
+
     fn parse_string(&mut self) -> Command {
         let token = self.tokens.next().unwrap();
         Command {
@@ -129,6 +169,22 @@ impl<'a> Parser<'a> {
         let token = self.tokens.next().unwrap();
         Command {
             kind: CommandKind::Boolean(token.value.parse().unwrap()),
+            stdin: None,
+        }
+    }
+
+    fn parse_integer(&mut self) -> Command {
+        let token = self.tokens.next().unwrap();
+        Command {
+            kind: CommandKind::Integer(token.value.parse().unwrap()),
+            stdin: None,
+        }
+    }
+
+    fn parse_float(&mut self) -> Command {
+        let token = self.tokens.next().unwrap();
+        Command {
+            kind: CommandKind::Float(token.value.parse().unwrap()),
             stdin: None,
         }
     }
@@ -182,7 +238,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Cd);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -210,10 +266,7 @@ mod tests {
                 assert_eq!(*builtin, Builtin::Cd);
                 assert_eq!(
                     *args,
-                    vec![Token {
-                        value: "/home".to_string(),
-                        kind: TokenKind::Word,
-                    }]
+                    vec![Command::new(CommandKind::String("/home".to_string()))]
                 );
             }
             _ => panic!("Expected BuiltIn"),
@@ -247,14 +300,8 @@ mod tests {
                 assert_eq!(
                     *args,
                     vec![
-                        Token {
-                            value: "/home".to_string(),
-                            kind: TokenKind::Word,
-                        },
-                        Token {
-                            value: "arg2".to_string(),
-                            kind: TokenKind::Word,
-                        }
+                        Command::new(CommandKind::String("/home".to_string())),
+                        Command::new(CommandKind::String("arg2".to_string()))
                     ]
                 );
             }
@@ -276,7 +323,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Exit);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -291,7 +338,7 @@ mod tests {
             },
             Token {
                 value: "1".to_string(),
-                kind: TokenKind::Word,
+                kind: TokenKind::Integer,
             },
         ];
 
@@ -302,13 +349,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Exit);
-                assert_eq!(
-                    *args,
-                    vec![Token {
-                        value: "1".to_string(),
-                        kind: TokenKind::Word,
-                    }]
-                );
+                assert_eq!(*args, vec![Command::new(CommandKind::Integer(1))]);
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -323,11 +364,11 @@ mod tests {
             },
             Token {
                 value: "1".to_string(),
-                kind: TokenKind::Word,
+                kind: TokenKind::Integer,
             },
             Token {
                 value: "2".to_string(),
-                kind: TokenKind::Word,
+                kind: TokenKind::Integer,
             },
         ];
 
@@ -341,14 +382,8 @@ mod tests {
                 assert_eq!(
                     *args,
                     vec![
-                        Token {
-                            value: "1".to_string(),
-                            kind: TokenKind::Word,
-                        },
-                        Token {
-                            value: "2".to_string(),
-                            kind: TokenKind::Word,
-                        }
+                        Command::new(CommandKind::Integer(1)),
+                        Command::new(CommandKind::Integer(2))
                     ]
                 );
             }
@@ -370,7 +405,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Ls);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -398,10 +433,7 @@ mod tests {
                 assert_eq!(*builtin, Builtin::Ls);
                 assert_eq!(
                     *args,
-                    vec![Token {
-                        value: "arg1".to_string(),
-                        kind: TokenKind::Word
-                    }]
+                    vec![Command::new(CommandKind::String("arg1".to_string()))]
                 );
             }
             _ => panic!("Expected BuiltIn"),
@@ -435,14 +467,8 @@ mod tests {
                 assert_eq!(
                     *args,
                     vec![
-                        Token {
-                            value: "arg1".to_string(),
-                            kind: TokenKind::Word
-                        },
-                        Token {
-                            value: "arg2".to_string(),
-                            kind: TokenKind::Word
-                        }
+                        Command::new(CommandKind::String("arg1".to_string())),
+                        Command::new(CommandKind::String("arg2".to_string()))
                     ]
                 );
             }
@@ -512,7 +538,7 @@ mod tests {
                         kind: TokenKind::Word,
                     }
                 );
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected External"),
         }
@@ -545,14 +571,8 @@ mod tests {
                 assert_eq!(
                     *args,
                     vec![
-                        Token {
-                            value: "arg1".to_string(),
-                            kind: TokenKind::Word,
-                        },
-                        Token {
-                            value: "arg2".to_string(),
-                            kind: TokenKind::Word,
-                        }
+                        Command::new(CommandKind::String("arg1".to_string())),
+                        Command::new(CommandKind::String("arg2".to_string()))
                     ]
                 );
             }
@@ -779,7 +799,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Ls);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -790,7 +810,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Cd);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -830,7 +850,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Ls);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -841,7 +861,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Cd);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -852,7 +872,7 @@ mod tests {
                 ref args,
             } => {
                 assert_eq!(*builtin, Builtin::Pwd);
-                assert_eq!(*args, Vec::<Token>::new());
+                assert_eq!(*args, Vec::<Command>::new());
             }
             _ => panic!("Expected BuiltIn"),
         }
@@ -895,6 +915,38 @@ mod tests {
         match commands[1].kind {
             CommandKind::None => (),
             _ => panic!("Expected None"),
+        }
+    }
+
+    #[test]
+    fn parse_integer() {
+        let tokens = vec![Token {
+            value: "123".to_string(),
+            kind: TokenKind::Integer,
+        }];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].kind {
+            CommandKind::Integer(value) => {
+                assert_eq!(value, 123);
+            }
+            _ => panic!("Expected Integer"),
+        }
+    }
+
+    #[test]
+    fn parse_float() {
+        let tokens = vec![Token {
+            value: "3.14".to_string(),
+            kind: TokenKind::Float,
+        }];
+
+        let commands = Parser::new(tokens.iter().peekable()).parse();
+        match commands[0].kind {
+            CommandKind::Float(value) => {
+                assert_eq!(value, 3.14);
+            }
+            _ => panic!("Expected Float"),
         }
     }
 }

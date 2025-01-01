@@ -15,7 +15,6 @@ impl Command {
         for entry in entries {
             match entry {
                 Ok(entry) => files.push(Type::File {
-                    file: std::fs::File::open(&entry.path()).unwrap(),
                     path: entry.path(),
                     full_path: false,
                 }),
@@ -29,7 +28,7 @@ impl Command {
         let args = self.get_args();
         match args.len() {
             0 => self.list_dir("."),
-            1 => self.list_dir(&args[0].value),
+            1 => self.list_dir(&args[0].run_as_arg()),
             _ => Type::Error {
                 message: "Too many arguments".into(),
                 code: BuiltinExitCode::TooManyArguments as i32,
@@ -44,7 +43,6 @@ mod tests {
 
     use crate::builtin::BuiltinExitCode;
     use crate::command::{Command, CommandKind};
-    use crate::lexer::{Token, TokenKind};
     use crate::typesystem::Type;
 
     #[test]
@@ -107,16 +105,10 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let output = Command {
-            kind: CommandKind::Builtin {
-                builtin: crate::builtin::Builtin::Ls,
-                args: vec![Token {
-                    value: "test_dir".to_string(),
-                    kind: TokenKind::String,
-                }],
-            },
-            stdin: None,
-        }
+        let output = Command::new(CommandKind::Builtin {
+            builtin: crate::builtin::Builtin::Ls,
+            args: vec![Command::new(CommandKind::String("test_dir".to_string()))],
+        })
         .run();
         match output {
             Type::Array(files) => {
@@ -130,16 +122,10 @@ mod tests {
 
     #[test]
     fn test_run_with_invalid_args() {
-        let output = Command {
-            kind: CommandKind::Builtin {
-                builtin: crate::builtin::Builtin::Ls,
-                args: vec![Token {
-                    value: "invalid".to_string(),
-                    kind: TokenKind::String,
-                }],
-            },
-            stdin: None,
-        }
+        let output = Command::new(CommandKind::Builtin {
+            builtin: crate::builtin::Builtin::Ls,
+            args: vec![Command::new(CommandKind::String("invalid".to_string()))],
+        })
         .run();
         match output {
             Type::Error { code, message } => {
@@ -152,22 +138,13 @@ mod tests {
 
     #[test]
     fn test_run_with_too_many_args() {
-        let output = Command {
-            kind: CommandKind::Builtin {
-                builtin: crate::builtin::Builtin::Ls,
-                args: vec![
-                    Token {
-                        value: "/".to_string(),
-                        kind: TokenKind::String,
-                    },
-                    Token {
-                        value: "/".to_string(),
-                        kind: TokenKind::String,
-                    },
-                ],
-            },
-            stdin: None,
-        }
+        let output = Command::new(CommandKind::Builtin {
+            builtin: crate::builtin::Builtin::Ls,
+            args: vec![
+                Command::new(CommandKind::String("/".to_string())),
+                Command::new(CommandKind::String("/".to_string())),
+            ],
+        })
         .run();
         match output {
             Type::Error { code, message } => {
