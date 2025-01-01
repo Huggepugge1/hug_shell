@@ -60,6 +60,7 @@ impl<'a> Parser<'a> {
         command
     }
 
+    // Expression is a maximum of one binary operator
     fn parse_expression(&mut self) -> Command {
         if let Some(token) = self.tokens.peek() {
             match token.kind {
