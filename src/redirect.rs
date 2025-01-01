@@ -10,21 +10,16 @@ pub fn run(command: &mut Command) -> Type {
             destination,
         } => {
             let source_output = source.run();
-            match &destination.kind {
-                CommandKind::String(s) => {
-                    let mut file = std::fs::OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .open(s)
-                        .unwrap();
-                    let colorless = source_output.to_colorless_string();
-                    let len = colorless.len();
-                    // Remove the first and last character, which is a quote
-                    file.write_all(colorless[1..len - 1].as_bytes()).unwrap();
-                }
-                _ => eprintln!("Destination must be a string"),
-            }
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(destination.run().to_undecorated_string())
+                .unwrap();
+            let colorless = source_output.to_colorless_string();
+            let len = colorless.len();
+            // Remove the first and last character, which is a quote
+            file.write_all(colorless[1..len - 1].as_bytes()).unwrap();
         }
         _ => unreachable!(),
     }

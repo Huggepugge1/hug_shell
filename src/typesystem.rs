@@ -88,7 +88,7 @@ impl std::fmt::Display for Type {
             } => color_file(file, path, f, *full_path),
 
             Type::String(s) => write!(f, "{}", format!("\"{s}\"").green().to_string()),
-            Type::Array(a) => write!(f, "{}", array_to_string(a, true).to_string()),
+            Type::Array(a) => write!(f, "{}", array_to_string(a, true, true).to_string()),
             Type::Integer(i) => write!(f, "{}", i.to_string().white().to_string()),
             Type::Float(fl) => write!(f, "{}", fl.to_string().white().to_string()),
             Type::Boolean(b) => write!(f, "{}", b.to_string().bright_magenta().to_string()),
@@ -124,7 +124,37 @@ impl Type {
             }
 
             Type::String(s) => format!("\"{s}\""),
-            Type::Array(a) => array_to_string(a, false),
+            Type::Array(a) => array_to_string(a, false, true),
+            Type::Integer(i) => i.to_string(),
+            Type::Float(fl) => fl.to_string(),
+            Type::Boolean(b) => b.to_string(),
+            Type::Null => "null".to_string(),
+
+            Type::Error { message, code } => {
+                format!("Error: {}\nExited With status {}", message, code)
+            }
+        }
+    }
+
+    pub fn to_undecorated_string(&self) -> String {
+        match self {
+            Type::Output(o) => match o.status.success() {
+                true => String::from_utf8_lossy(&o.stdout).to_string(),
+                false => String::from_utf8_lossy(&o.stderr).to_string(),
+            },
+
+            Type::File {
+                path, full_path, ..
+            } => {
+                if *full_path {
+                    path.to_str().unwrap().to_string()
+                } else {
+                    path.file_name().unwrap().to_str().unwrap().to_string()
+                }
+            }
+
+            Type::String(s) => s.to_string(),
+            Type::Array(a) => array_to_string(a, false, false),
             Type::Integer(i) => i.to_string(),
             Type::Float(fl) => fl.to_string(),
             Type::Boolean(b) => b.to_string(),
@@ -137,21 +167,31 @@ impl Type {
     }
 }
 
-fn array_to_string(array: &Vec<Type>, colored: bool) -> String {
+fn array_to_string(array: &Vec<Type>, colored: bool, decorated: bool) -> String {
     let mut s = String::new();
-    s.push_str("[\n");
+    if decorated {
+        s.push_str("[\n");
+    }
     for (i, item) in array.iter().enumerate() {
-        s.push_str("  ");
+        if decorated {
+            s.push_str("  ");
+        }
         if colored {
             s.push_str(&item.to_string());
         } else {
             s.push_str(&item.to_colorless_string());
         }
         if i < array.len() - 1 {
-            s.push_str(",\n");
+            if decorated {
+                s.push_str(",\n");
+            } else {
+                s.push_str(" ");
+            }
         }
     }
-    s.push_str("\n]");
+    if decorated {
+        s.push_str("\n]");
+    }
     s
 }
 
