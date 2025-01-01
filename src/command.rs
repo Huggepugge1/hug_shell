@@ -1,11 +1,7 @@
-use super::lexer::Token;
+use crate::builtin::Builtin;
+use crate::lexer::Token;
 
-use crate::builtin;
-use crate::external;
-use crate::pipes;
-use crate::redirect;
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Command {
     pub kind: CommandKind,
     pub stdin: Option<crate::typesystem::Type>,
@@ -20,16 +16,22 @@ impl PartialEq for Command {
 pub const UNKNOWN_ERROR_CODE: i32 = 200;
 
 impl Command {
+    pub fn new(kind: CommandKind) -> Self {
+        Command { kind, stdin: None }
+    }
+
     pub fn run(&mut self) -> crate::typesystem::Type {
         match &self.kind {
             CommandKind::Builtin { .. } => self.run_builtin(),
-            CommandKind::External { .. } => external::run(self),
+            CommandKind::External { .. } => self.run_external(),
 
             CommandKind::String(s) => crate::typesystem::Type::String(s.clone()),
             CommandKind::Boolean(b) => crate::typesystem::Type::Boolean(*b),
+            CommandKind::Integer(i) => crate::typesystem::Type::Integer(*i),
+            CommandKind::Float(f) => crate::typesystem::Type::Float(*f),
 
-            CommandKind::Redirect { .. } => redirect::run(self),
-            CommandKind::Pipe { .. } => pipes::run(self),
+            CommandKind::Redirect { .. } => self.run_redirect(),
+            CommandKind::Pipe { .. } => self.run_pipe(),
 
             CommandKind::None => crate::typesystem::Type::Null,
 
@@ -40,13 +42,52 @@ impl Command {
         }
     }
 
-    pub fn get_args(&self) -> Vec<Token> {
+    pub fn run_as_arg(&self) -> String {
+        match &self.kind {
+            CommandKind::String(s) => s.clone(),
+            CommandKind::Boolean(b) => b.to_string(),
+            CommandKind::Integer(i) => i.to_string(),
+            CommandKind::Float(f) => f.to_string(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn get_args(&self) -> Vec<Command> {
         match &self.kind {
             CommandKind::Builtin { args, .. } => args.clone(),
             CommandKind::External { args, .. } => args.clone(),
             _ => Vec::new(),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum CommandKind {
+    Builtin {
+        builtin: Builtin,
+        args: Vec<Command>,
+    },
+    External {
+        name: Token,
+        args: Vec<Command>,
+    },
+
+    String(String),
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+
+    Redirect {
+        source: Box<Command>,
+        destination: Box<Command>,
+    },
+    Pipe {
+        source: Box<Command>,
+        destination: Box<Command>,
+    },
+
+    None,
+    Error(String),
 }
 
 #[cfg(test)]
@@ -80,31 +121,34 @@ mod tests {
             _ => panic!("Expected Type::Boolean"),
         }
     }
-}
 
-#[derive(Debug, PartialEq)]
-pub enum CommandKind {
-    Builtin {
-        builtin: builtin::Builtin,
-        args: Vec<Token>,
-    },
-    External {
-        name: Token,
-        args: Vec<Token>,
-    },
+    #[test]
+    fn test_run_integer() {
+        let mut command = super::Command {
+            kind: super::CommandKind::Integer(42),
+            stdin: None,
+        };
+        let output = command.run();
+        match output {
+            crate::typesystem::Type::Integer(i) => {
+                assert_eq!(i, 42);
+            }
+            _ => panic!("Expected Type::Integer"),
+        }
+    }
 
-    String(String),
-    Boolean(bool),
-
-    Redirect {
-        source: Box<Command>,
-        destination: Box<Command>,
-    },
-    Pipe {
-        source: Box<Command>,
-        destination: Box<Command>,
-    },
-
-    None,
-    Error(String),
+    #[test]
+    fn test_run_float() {
+        let mut command = super::Command {
+            kind: super::CommandKind::Float(3.14),
+            stdin: None,
+        };
+        let output = command.run();
+        match output {
+            crate::typesystem::Type::Float(f) => {
+                assert_eq!(f, 3.14);
+            }
+            _ => panic!("Expected Type::Float"),
+        }
+    }
 }

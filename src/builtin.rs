@@ -1,7 +1,7 @@
 use crate::command::{Command, CommandKind};
 use crate::typesystem::Type;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Builtin {
     Cd,
     Exit,

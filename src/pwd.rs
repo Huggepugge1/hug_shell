@@ -13,7 +13,6 @@ impl Command {
         }
         match std::env::current_dir() {
             Ok(path) => Type::File {
-                file: std::fs::File::open(&path).unwrap(),
                 path: path.into(),
                 full_path: true,
             },
